@@ -25,7 +25,7 @@ app.listen(appEnv.port, '0.0.0.0', function () {
 });
 
 //******************************************************************************************GLOBAL VARIABLES
-var runningLocal = false;
+var runningLocal = true; //when this is running locally, we can write the chaincodeID to a file...not so much when running on bluemix
 var config;
 var chain;
 var network;
@@ -36,14 +36,7 @@ var userObj;
 var newUserName;
 var chaincodeID;
 var certFile = 'us.blockchain.ibm.com.cert';
-var chaincodeIDPath;
-
-if (runningLocal)
-  chaincodeIDPath = __dirname + "/chaincodeID";
-else
-  chaincodeIDPath = "/home/vcap/app" + "/chaincodeID";
-
-
+var chaincodeIDPath = __dirname + "/chaincodeID";
 
 var caUrl;
 var peerUrls = [];
@@ -88,7 +81,10 @@ app.post('/writeVote', function (req, res) {
     }
     else {
       // Read chaincodeID and use this for sub sequent Invokes/Queries
-      chaincodeID = fs.readFileSync(chaincodeIDPath, 'utf8');
+
+      if (runningLocal)
+        chaincodeID = fs.readFileSync(chaincodeIDPath, 'utf8');
+
       chain.getUser(userNameAction, function (err, user) {
         if (err) {
           err2 = new Error();
@@ -141,7 +137,11 @@ app.post('/readDistrict', function (req, res) {
     }
     else {
       // Read chaincodeID and use this for sub sequent Invokes/Queries
-      chaincodeID = fs.readFileSync(chaincodeIDPath, 'utf8');
+
+      if (runningLocal) {
+        chaincodeID = fs.readFileSync(chaincodeIDPath, 'utf8');
+      }
+
       chain.getUser(userNameAction, function (err, user) {
         if (err) {
           err2 = new Error();
@@ -181,7 +181,11 @@ app.post('/metadata', function (req, res) {
   }
   else {
     // Read chaincodeID and use this for sub sequent Invokes/Queries
-    chaincodeID = fs.readFileSync(chaincodeIDPath, 'utf8');
+
+    if (runningLocal)
+      chaincodeID = fs.readFileSync(chaincodeIDPath, 'utf8');
+
+
     chain.getUser(userNameAction, function (err, user) {
       if (err) {
         err2 = new Error();
@@ -231,10 +235,8 @@ function init(callback) { //INITIALIZATION
   // Create a client blockchin.
   chain = hfc.newChain(config.chainName); //USE THE GIVEN CHAIN NAME TO CREATE A CHAIN OBJECT
 
-  if (runningLocal)
-    certPath = __dirname + "/src/" + config.deployRequest.chaincodePath + "/certificate.pem";  //CREATE PATH TO ADD THE CERTIFICATE
-  else
-    certPath = "/home/vcap/app" + "/src/" + config.deployRequest.chaincodePath + "/certificate.pem";  //CREATE PATH TO ADD THE CERTIFICATE
+  certPath = __dirname + "/src/" + config.deployRequest.chaincodePath + "/certificate.pem";  //CREATE PATH TO ADD THE CERTIFICATE
+
 
 
 
@@ -255,8 +257,7 @@ function init(callback) { //INITIALIZATION
 
   printNetworkDetails();
   //Check if chaincode is already deployed
-  //TODO: Deploy failures aswell returns chaincodeID, How to address such issue?
-  if (fileExists(chaincodeIDPath)) {
+  if (fileExists(chaincodeIDPath)) { //this check for the chaincodeID only works when running locally!!!
     console.log("Chaincode was already deployed and users are ready! You can now invoke and query");
 
     err = new Error();
@@ -395,7 +396,10 @@ function deployChaincode(callback) {
     console.log("\nChaincode ID : " + chaincodeID);
     console.log(util.format("\nSuccessfully deployed chaincode: request=%j, response=%j", deployRequest, results));
     // Save the chaincodeID
-    fs.writeFileSync(chaincodeIDPath, chaincodeID);
+
+    if (runningLocal) //
+      fs.writeFileSync(chaincodeIDPath, chaincodeID); //THIS WRITE ONLY WORKS WHEN RUNNING LOCALLY!
+
     callback(null, results);
   });
 
