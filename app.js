@@ -25,6 +25,7 @@ app.listen(appEnv.port, '0.0.0.0', function () {
 });
 
 //******************************************************************************************GLOBAL VARIABLES
+var runningLocal = false;
 var config;
 var chain;
 var network;
@@ -35,7 +36,14 @@ var userObj;
 var newUserName;
 var chaincodeID;
 var certFile = 'us.blockchain.ibm.com.cert';
-var chaincodeIDPath = __dirname + "/chaincodeID";
+var chaincodeIDPath;
+
+if (runningLocal)
+  chaincodeIDPath = __dirname + "/chaincodeID";
+else
+  chaincodeIDPath = "/home/vcap/app" + "/chaincodeID";
+
+
 
 var caUrl;
 var peerUrls = [];
@@ -222,7 +230,12 @@ function init(callback) { //INITIALIZATION
 
   // Create a client blockchin.
   chain = hfc.newChain(config.chainName); //USE THE GIVEN CHAIN NAME TO CREATE A CHAIN OBJECT
-  certPath = __dirname + "/src/" + config.deployRequest.chaincodePath + "/certificate.pem";  //CREATE PATH TO ADD THE CERTIFICATE
+
+  if (runningLocal)
+    certPath = __dirname + "/src/" + config.deployRequest.chaincodePath + "/certificate.pem";  //CREATE PATH TO ADD THE CERTIFICATE
+  else
+    certPath = "/home/vcap/app" + "/src/" + config.deployRequest.chaincodePath + "/certificate.pem";  //CREATE PATH TO ADD THE CERTIFICATE
+
 
 
   // Read and process the credentials.json
@@ -426,12 +439,12 @@ function invoke(voter, district, vote, callback) {
   invokeTx.on('complete', function (results) {
     // Invoke transaction completed successfully
     console.log(util.format("\nSuccessfully completed chaincode invoke transaction: request=%j, response=%j", invokeRequest, results));
-    callback(null,results);
+    callback(null, results);
   });
   invokeTx.on('error', function (err) {
     // Invoke transaction submission failed
     console.log(util.format("\nFailed to submit chaincode invoke transaction: request=%j, error=%j", invokeRequest, err));
-    callback(err,null);
+    callback(err, null);
   });
 
   //Listen to custom events
