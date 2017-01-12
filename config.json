@@ -1,0 +1,20 @@
+{
+   "chainName":"Referendum Edinburgh",
+   "deployWaitTime":"90",
+   "user": {
+	    "username": "tommy",
+        "affiliation" : "group1"
+   },
+   "deployRequest":{
+      "chaincodePath":"chaincode",
+      "functionName":"init",
+      "args":[
+          "Scottish Independence",
+         "4",
+         "edinburgh",
+         "glasgow",
+         "aberdeen",
+         "dundee"
+      ]
+   }
+}
