@@ -2,6 +2,7 @@ process.env.GOPATH = __dirname;
 var hfc = require('hfc');
 var util = require('util');
 var fs = require('fs');
+var Cloudant = require('cloudant');
 const https = require('https');
 var express = require('express');
 // cfenv provides access to your Cloud Foundry environment
@@ -18,11 +19,34 @@ app.use(bodyParser.urlencoded({ extended: true })); // support encoded bodies
 // get the app environment from Cloud Foundry
 var appEnv = cfenv.getAppEnv();
 
+var cloudantUsername = '254ec36f-02c6-43e4-99ea-b840f2404041-bluemix';
+var cloudantPassword = "8eae1d3dd1c3c4cc1b6e002c79e3ae18eaab2f328be5cad6ec9f0c2ab6421002"; //if we ever store anything remotely sensitive, we can't have this p/w here
+var cloudant = Cloudant({ account: cloudantUsername, password: cloudantPassword });
+
 // start server on the specified port and binding host
 app.listen(appEnv.port, '0.0.0.0', function () {
   // print a message when the server starts listening
   console.log("server starting on " + appEnv.url);
 });
+
+
+//******************************************************************************************CLOUDANT FUNCTIONS
+var createDataBase = function (callback) {
+  cloudant.db.create('blockvote', function (err, data) {
+    if (err) {
+      if (err.error === "file_exists") {
+        var blockvoteDB = cloudant.db.use('blockvote');
+        callback(null, null); //db already exists
+      } else {
+        callback(err, null); //creation error
+      }
+    }
+    else { //created successfully
+      var blockvoteDB = cloudant.db.use('blockvote');
+      callback(null, data);
+    }
+  });
+}
 
 //******************************************************************************************GLOBAL VARIABLES
 var runningLocal = true; //when this is running locally, we can write the chaincodeID to a file...not so much when running on bluemix
@@ -42,10 +66,24 @@ var caUrl;
 var peerUrls = [];
 var EventUrls = [];
 
+createDataBase(function (err, resp) {
+  if (err) { //creation error
+    res.send(JSON.stringify({ error: err }));
+  } else {
+
+    if (!resp)
+      console.log("blockvote db already existed, ready to use")
+    else
+      console.log("blockvote db created, ready to use")
+
+  }
+});
+
 //******************************************************************************************ROUTES
 app.get('/deploy', function (req, res) {
   //deploy chaincode
   res.setHeader('Content-Type', 'application/json');
+
   init(function (err, resp) {
     if (err) {
       res.send(JSON.stringify({ error: err }));
@@ -54,6 +92,8 @@ app.get('/deploy', function (req, res) {
       res.send(JSON.stringify({ response: resp }));
     }
   });
+
+
 });
 
 app.post('/writeVote', function (req, res) {
@@ -215,7 +255,7 @@ app.post('/metadata', function (req, res) {
 
 
 
-//******************************************************************************************FUNCTIONS
+//******************************************************************************************HFC FUNCTIONS
 
 function init(callback) { //INITIALIZATION
 
@@ -517,4 +557,3 @@ function printNetworkDetails() {
   console.log("");
   console.log('-----------------------------------------------------------\n');
 }
-
