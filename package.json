@@ -10,7 +10,7 @@
     "cfenv": "1.0.x",
     "cloudant": "^1.6.2",
     "express": "4.13.x",
-    "hfc": "0.6.5"
+    "hfc": "0.6.1"
   },
   "repository": {},
   "engines": {

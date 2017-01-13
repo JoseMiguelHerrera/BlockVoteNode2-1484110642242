@@ -6,7 +6,6 @@ var Cloudant = require('cloudant');
 const https = require('https');
 var express = require('express');
 // cfenv provides access to your Cloud Foundry environment
-// for more info, see: https://www.npmjs.com/package/cfenv
 var cfenv = require('cfenv');
 // create a new express server
 var app = express();
@@ -22,6 +21,7 @@ var appEnv = cfenv.getAppEnv();
 var cloudantUsername = '254ec36f-02c6-43e4-99ea-b840f2404041-bluemix';
 var cloudantPassword = "8eae1d3dd1c3c4cc1b6e002c79e3ae18eaab2f328be5cad6ec9f0c2ab6421002"; //if we ever store anything remotely sensitive, we can't have this p/w here
 var cloudant = Cloudant({ account: cloudantUsername, password: cloudantPassword });
+var blockvoteDB;
 
 // start server on the specified port and binding host
 app.listen(appEnv.port, '0.0.0.0', function () {
@@ -35,21 +35,37 @@ var createDataBase = function (callback) {
   cloudant.db.create('blockvote', function (err, data) {
     if (err) {
       if (err.error === "file_exists") {
-        var blockvoteDB = cloudant.db.use('blockvote');
+        blockvoteDB = cloudant.db.use('blockvote');
         callback(null, null); //db already exists
       } else {
         callback(err, null); //creation error
       }
     }
     else { //created successfully
-      var blockvoteDB = cloudant.db.use('blockvote');
+      blockvoteDB = cloudant.db.use('blockvote');
       callback(null, data);
     }
   });
 }
 
+
+// create a document
+var createDocument = function (id, val, callback) {
+  // we are specifying the id of the document so we can update and delete it later
+  blockvoteDB.insert({ _id: id, chaincodeID: val }, function (err, data) {
+    callback(err, data);
+  });
+};
+
+// read a document
+var readDocument = function (id, callback) {
+  blockvoteDB.get(id, function (err, data) {
+    callback(err, data);
+  });
+};
+
 //******************************************************************************************GLOBAL VARIABLES
-var runningLocal = true; //when this is running locally, we can write the chaincodeID to a file...not so much when running on bluemix
+var runningLocal = false; //leave this as false, I am phasing out the writing to the file system
 var config;
 var chain;
 var network;
@@ -61,6 +77,7 @@ var newUserName;
 var chaincodeID;
 var certFile = 'us.blockchain.ibm.com.cert';
 var chaincodeIDPath = __dirname + "/chaincodeID";
+var chaincodeIDKnown;
 
 var caUrl;
 var peerUrls = [];
@@ -75,9 +92,10 @@ createDataBase(function (err, resp) {
       console.log("blockvote db already existed, ready to use")
     else
       console.log("blockvote db created, ready to use")
-
   }
 });
+
+
 
 //******************************************************************************************ROUTES
 app.get('/deploy', function (req, res) {
@@ -124,6 +142,23 @@ app.post('/writeVote', function (req, res) {
 
       if (runningLocal)
         chaincodeID = fs.readFileSync(chaincodeIDPath, 'utf8');
+      else { //running on bluemix
+
+
+        readDocument(config.chainName, function (err, resp) { //not_found is the err.error if not found
+          if (err) {
+            res.send(JSON.stringify({ error: err }));
+          }
+          else {
+            console.log(resp);
+            chaincodeID = resp.chaincodeID
+          }
+        });
+
+
+
+
+      }
 
       chain.getUser(userNameAction, function (err, user) {
         if (err) {
@@ -180,6 +215,16 @@ app.post('/readDistrict', function (req, res) {
 
       if (runningLocal) {
         chaincodeID = fs.readFileSync(chaincodeIDPath, 'utf8');
+      } else {
+        readDocument(config.chainName, function (err, resp) { //not_found is the err.error if not found
+          if (err) {
+            res.send(JSON.stringify({ error: err }));
+          }
+          else {
+            console.log(resp);
+            chaincodeID = resp.chaincodeID
+          }
+        });
       }
 
       chain.getUser(userNameAction, function (err, user) {
@@ -224,6 +269,17 @@ app.post('/metadata', function (req, res) {
 
     if (runningLocal)
       chaincodeID = fs.readFileSync(chaincodeIDPath, 'utf8');
+    else {
+      readDocument(config.chainName, function (err, resp) { //not_found is the err.error if not found
+        if (err) {
+          res.send(JSON.stringify({ error: err }));
+        }
+        else {
+          console.log(resp);
+          chaincodeID = resp.chaincodeID
+        }
+      });
+    }
 
 
     chain.getUser(userNameAction, function (err, user) {
@@ -296,18 +352,36 @@ function init(callback) { //INITIALIZATION
   setup(); //CALL SET UP: ADDS PEERS FROM SERVICE CREDENTIALS TO BLOCKCHAIN. ALSO GETS THE USERNAME FOR THE NEW USER IN CONFIG
 
   printNetworkDetails();
-  //Check if chaincode is already deployed
-  if (fileExists(chaincodeIDPath)) { //this check for the chaincodeID only works when running locally!!!
-    console.log("Chaincode was already deployed and users are ready! You can now invoke and query");
 
-    err = new Error();
-    err.code = 202;
-    err.error = "deployment: chaincode already deployed. Ready to invoke and query"
-    callback(err, null);
+  console.log("attempting to read chaincodeID from DB");
+  readDocument(config.chainName, function (err, resp) { //not_found is the err.error if not found
+    if (err.error === "not_found") {
+      console.log("the chaincodeID was not found on the DB");
+      chaincodeIDKnown = false;
+    } else if (err && err.error !== "not_found") {
+      console.log("some other error happened: " + err);
+      callback(err, null);
+    }
+    else {
+      console.log("the chaincodeID was found on the DB");
+      chaincodeIDKnown = true;
+    }
 
-  } else {
-    enrollAndRegisterUsers(callback); //ENROLL THE PRE-REGISTERED ADMIN (FROM membersrvc.YAML) AND SERVICECREDENTIALS, CALL deployChaincode!
-  }
+    if (chaincodeIDKnown) {
+      console.log("Chaincode was already deployed and users are ready! You can now invoke and query");
+
+      err = new Error();
+      err.code = 202;
+      err.error = "deployment: chaincode already deployed. Ready to invoke and query"
+      callback(err, null);
+
+    } else {
+      enrollAndRegisterUsers(callback); //ENROLL THE PRE-REGISTERED ADMIN (FROM membersrvc.YAML) AND SERVICECREDENTIALS, CALL deployChaincode!
+    }
+  });
+
+
+
 }
 
 function setup() {
@@ -387,7 +461,6 @@ function enrollAndRegisterUsers(callback) { //enrolls admin
 
 
     chain.registerAndEnroll(registrationRequest, function (err, user) {
-      console.log("what is in error: " + err);
       if (err) {
         err = new Error();
         err.code = 500;
@@ -427,8 +500,6 @@ function deployChaincode(callback) {
   var deployTx = userObj.deploy(deployRequest);
 
 
-
-
   // Print the deploy results
   deployTx.on('complete', function (results) {
     // Deploy request completed successfully
@@ -437,10 +508,23 @@ function deployChaincode(callback) {
     console.log(util.format("\nSuccessfully deployed chaincode: request=%j, response=%j", deployRequest, results));
     // Save the chaincodeID
 
-    if (runningLocal) //
+    if (runningLocal) {
       fs.writeFileSync(chaincodeIDPath, chaincodeID); //THIS WRITE ONLY WORKS WHEN RUNNING LOCALLY!
+      callback(null, results);
+    }
+    else { //running on bluemix
+      createDocument(config.chainName, chaincodeID, function (err, resp) { //write (chainName: chaincodeID) to db
+        if (err) {
+          console.log("error writing chaincodeid to db after deployement");
+          callback(err, null);
+        }
+        else {
+          console.log("wrote chaincodeid to db after deployement");
+          callback(null, results);
+        }
+      });
+    }
 
-    callback(null, results);
   });
 
   deployTx.on('error', function (err) {

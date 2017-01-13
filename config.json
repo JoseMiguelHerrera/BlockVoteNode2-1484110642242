@@ -1,6 +1,6 @@
 {
    "chainName":"Referendum Edinburgh",
-   "deployWaitTime":"90",
+   "deployWaitTime":"80",
    "user": {
 	    "username": "tommy",
         "affiliation" : "group1"
