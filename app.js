@@ -329,7 +329,9 @@ function init(callback) { //INITIALIZATION
   newUserName = config.user.username;
 
   // Create a client blockchin.
-  chain = hfc.newChain(config.chainName); //USE THE GIVEN CHAIN NAME TO CREATE A CHAIN OBJECT
+
+  if (!chain)
+    chain = hfc.newChain(config.chainName); //USE THE GIVEN CHAIN NAME TO CREATE A CHAIN OBJECT
 
   certPath = __dirname + "/src/" + config.deployRequest.chaincodePath + "/certificate.pem";  //CREATE PATH TO ADD THE CERTIFICATE
 
@@ -355,18 +357,18 @@ function init(callback) { //INITIALIZATION
 
   console.log("attempting to read chaincodeID from DB");
   readDocument(config.chainName, function (err, resp) { //not_found is the err.error if not found
-    if (err.error === "not_found") {
+    if (!err) {
+      console.log("the chaincodeID was found on the DB");
+      chaincodeIDKnown = true;
+      chaincodeID=resp.chaincodeID;
+    }
+    else if (err.error === "not_found") {
       console.log("the chaincodeID was not found on the DB");
       chaincodeIDKnown = false;
-    } else if (err && err.error !== "not_found") {
+    } else if (err.error !== "not_found") {
       console.log("some other error happened: " + err);
       callback(err, null);
     }
-    else {
-      console.log("the chaincodeID was found on the DB");
-      chaincodeIDKnown = true;
-    }
-
     if (chaincodeIDKnown) {
       console.log("Chaincode was already deployed and users are ready! You can now invoke and query");
 
