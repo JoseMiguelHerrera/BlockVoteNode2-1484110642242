@@ -26,6 +26,12 @@ type districtReferendum struct {
 	Votes        map[string]string //maps vote ID to vote
 }
 
+type voterState struct {
+	CanVote      string
+	HasVoted     string
+	RegisteredBy string
+}
+
 // SimpleChaincode example simple Chaincode implementation
 type SimpleChaincode struct {
 }
@@ -93,6 +99,8 @@ func (t *SimpleChaincode) Invoke(stub shim.ChaincodeStubInterface, function stri
 		return t.write(stub, args)
 	} else if function == "error" {
 		return t.error(stub, args)
+	} else if function == "register" {
+		return t.registerToVote(stub, args)
 	}
 
 	fmt.Println("invoke did not find func: " + function) //error
@@ -101,6 +109,46 @@ func (t *SimpleChaincode) Invoke(stub shim.ChaincodeStubInterface, function stri
 
 func (t *SimpleChaincode) error(stub shim.ChaincodeStubInterface, args []string) ([]byte, error) {
 	return nil, errors.New("generic error")
+}
+
+func (t *SimpleChaincode) registerToVote(stub shim.ChaincodeStubInterface, args []string) ([]byte, error) { //BY USE ONLY BY ADMIN/REGISTRAR!!
+	var name string          //name of person who is being allowed to vote
+	var allowedToVote string //yes or no
+	var registrar string     //who is registering this user
+
+	if len(args) != 3 {
+		return nil, errors.New("Incorrect number of arguments. Expecting 3. ID of the person who is being registered to vote,  yes or no, and name of registrar")
+	}
+	name = args[0]
+	allowedToVote = args[1]
+	registrar = args[2]
+
+	//check allowedToVote value
+	if strings.TrimRight(allowedToVote, "\n") != "yes" && strings.TrimRight(allowedToVote, "\n") == "no" {
+		return nil, errors.New("allowed to vote val needs to be a yes or no")
+	}
+
+	//check if this user already has a record
+	preExistRecord, err := stub.GetState(name) //gets value for the given key
+	if err != nil {                            //error with retrieval
+		return nil, err
+	}
+	if preExistRecord != nil { //user already has a record
+		return nil, errors.New(name + "has alredy been registered")
+	}
+	//user record to be recorded
+	voterRecord := &voterState{CanVote: allowedToVote, HasVoted: "no", RegisteredBy: registrar}
+	voterRecordJSON, err := json.Marshal(voterRecord) //golang JSON (byte array)
+	if err != nil {
+		return nil, errors.New("Marshalling for voterRecord struct has failed")
+	}
+	err = stub.PutState(name, voterRecordJSON) //writes the key-value pair ("metadata", json object)
+	if err != nil {
+		return nil, errors.New("put state of voterRecord has failed")
+	}
+
+	return nil, nil
+
 }
 
 func (t *SimpleChaincode) write(stub shim.ChaincodeStubInterface, args []string) ([]byte, error) {
@@ -143,14 +191,25 @@ func (t *SimpleChaincode) write(stub shim.ChaincodeStubInterface, args []string)
 	if err != nil { //unmarshalling error
 		return nil, err
 	}
-
-	//check if user has voted, in any district
-	preExistVote, err := stub.GetState(name) //gets value for the given key
-	if err != nil {
+	//get data about user a hand
+	var userData voterState
+	userDataRaw, err := stub.GetState(name)
+	if err != nil { //error
 		return nil, err
 	}
-	if preExistVote != nil { //vote already exists
+	if userDataRaw == nil { //user data doesn't exist
+		return nil, errors.New(name + " has not been registered yet")
+	}
+	err = json.Unmarshal(userDataRaw, &userData)
+	if err != nil { //unmarshalling error
+		return nil, err
+	}
+
+	if strings.TrimRight(userData.HasVoted, "\n") == "yes" {
 		return nil, errors.New("vote already exists")
+	}
+	if strings.TrimRight(userData.CanVote, "\n") == "no" {
+		return nil, errors.New(name + "is not allowed to vote")
 	}
 
 	//if person has not already voted, update district data
@@ -191,7 +250,13 @@ func (t *SimpleChaincode) write(stub shim.ChaincodeStubInterface, args []string)
 		return nil, err
 	}
 
-	err = stub.PutState(name, []byte(value)) //write name of voter at global level to easily detect if someone has already voted in ANY district
+	userData.HasVoted = "yes"
+	userDataJSON, err := json.Marshal(userData) //golang JSON (byte array)
+	if err != nil {                             //marshall error
+		return nil, err
+	}
+
+	err = stub.PutState(name, userDataJSON) //write name of voter at global level to easily detect if someone has already voted in ANY district
 	if err != nil {
 		return nil, err
 	}
