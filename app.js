@@ -143,8 +143,6 @@ app.post('/writeVote', function (req, res) {
       if (runningLocal)
         chaincodeID = fs.readFileSync(chaincodeIDPath, 'utf8');
       else { //running on bluemix
-
-
         readDocument(config.chainName, function (err, resp) { //not_found is the err.error if not found
           if (err) {
             res.send(JSON.stringify({ error: err }));
@@ -154,9 +152,6 @@ app.post('/writeVote', function (req, res) {
             chaincodeID = resp.chaincodeID
           }
         });
-
-
-
 
       }
 
@@ -170,8 +165,12 @@ app.post('/writeVote', function (req, res) {
         userObj = user;
 
         //can now invoke, query, etc
+        var args2 = [];
+        args2.push(voter);
+        args2.push(district);
+        args2.push(vote);
 
-        invoke(voter, district, vote, function (err, resp) {
+        invoke(args2, "write", function (err, resp) {
           if (err) {
             res.send(JSON.stringify({ error: err }));
           }
@@ -190,10 +189,12 @@ app.post('/writeVote', function (req, res) {
 
 });
 
-app.post('/readDistrict', function (req, res) {
+app.post('/registerUser', function (req, res) {
   res.setHeader('Content-Type', 'application/json');
   var userNameAction = req.body.username;
-  var district = req.body.district;
+
+  var voter = req.body.voter; //voter to be registered
+  var allowedToVote = req.body.reg; //"yes" or "no"
 
   if (!userNameAction) {
     err = new Error();
@@ -203,19 +204,19 @@ app.post('/readDistrict', function (req, res) {
     res.send(JSON.stringify({ error: err }));
   }
   else {
-    if (!district) {
+    if (!voter || !allowedToVote) {
       err = new Error();
       err.code = 400;
-      err.message = "you need to supply the name of a district that you want to query";
+      err.message = "you need to supply: a voter to register, and if they are allowed to vote or not: 'yes' or 'no'";
       console.log(err.message);
       res.send(JSON.stringify({ error: err }));
     }
     else {
       // Read chaincodeID and use this for sub sequent Invokes/Queries
 
-      if (runningLocal) {
+      if (runningLocal)
         chaincodeID = fs.readFileSync(chaincodeIDPath, 'utf8');
-      } else {
+      else { //running on bluemix
         readDocument(config.chainName, function (err, resp) { //not_found is the err.error if not found
           if (err) {
             res.send(JSON.stringify({ error: err }));
@@ -225,6 +226,7 @@ app.post('/readDistrict', function (req, res) {
             chaincodeID = resp.chaincodeID
           }
         });
+
       }
 
       chain.getUser(userNameAction, function (err, user) {
@@ -237,8 +239,12 @@ app.post('/readDistrict', function (req, res) {
         userObj = user;
 
         //can now invoke, query, etc
+        var args2 = [];
+        args2.push(voter);
+        args2.push(allowedToVote);
+        args2.push(userNameAction);
 
-        query(district, function (err, resp) {
+        invoke(args2, "register", function (err, resp) {
           if (err) {
             res.send(JSON.stringify({ error: err }));
           }
@@ -251,60 +257,32 @@ app.post('/readDistrict', function (req, res) {
       });
     }
   }
+
+
+
+
+});
+
+
+app.post('/readDistrict', function (req, res) {
+  res.setHeader('Content-Type', 'application/json');
+  var userNameAction = req.body.username;
+  var district = req.body.district;
+  read(res, userNameAction, district);
 });
 
 
 app.post('/metadata', function (req, res) {
   res.setHeader('Content-Type', 'application/json');
   var userNameAction = req.body.username;
-  if (!userNameAction) {
-    err = new Error();
-    err.code = 400;
-    err.message = "you need to supply a username for the actor doing the action";
-    console.log(err.message);
-    res.send(JSON.stringify({ error: err }));
-  }
-  else {
-    // Read chaincodeID and use this for sub sequent Invokes/Queries
+  read(res, userNameAction, "metadata");
+});
 
-    if (runningLocal)
-      chaincodeID = fs.readFileSync(chaincodeIDPath, 'utf8');
-    else {
-      readDocument(config.chainName, function (err, resp) { //not_found is the err.error if not found
-        if (err) {
-          res.send(JSON.stringify({ error: err }));
-        }
-        else {
-          console.log(resp);
-          chaincodeID = resp.chaincodeID
-        }
-      });
-    }
-
-
-    chain.getUser(userNameAction, function (err, user) {
-      if (err) {
-        err2 = new Error();
-        err2.code = 500;
-        err2.message = " Failed to register and enroll " + deployerName + ": " + err;
-        res.send(JSON.stringify({ error: err2 }));
-      }
-      userObj = user;
-
-      //can now invoke, query, etc
-
-      query("metadata", function (err, resp) {
-        if (err) {
-          res.send(JSON.stringify({ error: err }));
-        }
-        else {
-          res.send(JSON.stringify({ response: resp }));
-        }
-      });
-
-
-    });
-  }
+app.post('/userStatus', function (req, res) {
+  res.setHeader('Content-Type', 'application/json');
+  var userNameAction = req.body.username;
+  var voter = req.body.voter;
+  read(res, userNameAction, voter);
 });
 
 
@@ -360,7 +338,7 @@ function init(callback) { //INITIALIZATION
     if (!err) {
       console.log("the chaincodeID was found on the DB");
       chaincodeIDKnown = true;
-      chaincodeID=resp.chaincodeID;
+      chaincodeID = resp.chaincodeID;
     }
     else if (err.error === "not_found") {
       console.log("the chaincodeID was not found on the DB");
@@ -540,20 +518,16 @@ function deployChaincode(callback) {
 
 }
 
-function invoke(voter, district, vote, callback) {
-  var args2 = [];
 
-  args2.push(voter);
-  args2.push(district);
-  args2.push(vote);
-
+//voter, district, vote,
+function invoke(args2, func, callback) {
   var eh = chain.getEventHub();
   // Construct the invoke request
   var invokeRequest = {
     // Name (hash) required for invoke
     chaincodeID: chaincodeID,
     // Function to trigger
-    fcn: "write",
+    fcn: func,
     // Parameters for the invoke function
     args: args2
   };
@@ -613,6 +587,68 @@ function query(key, callback) {
     callback(err.msg.toString(), null);
   });
 }
+
+
+function read(res, userNameAction, key) {
+  if (!userNameAction) {
+    err = new Error();
+    err.code = 400;
+    err.message = "you need to supply a username for the actor doing the action";
+    console.log(err.message);
+    res.send(JSON.stringify({ error: err }));
+  }
+  else {
+    if (!key) {
+      err = new Error();
+      err.code = 400;
+      err.message = "you need to supply the name of a key that you want to query";
+      console.log(err.message);
+      res.send(JSON.stringify({ error: err }));
+    }
+    else {
+      // Read chaincodeID and use this for sub sequent Invokes/Queries
+
+      if (runningLocal) {
+        chaincodeID = fs.readFileSync(chaincodeIDPath, 'utf8');
+      } else {
+        readDocument(config.chainName, function (err, resp) { //not_found is the err.error if not found
+          if (err) {
+            res.send(JSON.stringify({ error: err }));
+          }
+          else {
+            console.log(resp);
+            chaincodeID = resp.chaincodeID
+          }
+        });
+      }
+
+      chain.getUser(userNameAction, function (err, user) {
+        if (err) {
+          err2 = new Error();
+          err2.code = 500;
+          err2.message = " Failed to register and enroll " + deployerName + ": " + err;
+          res.send(JSON.stringify({ error: err2 }));
+        }
+        userObj = user;
+
+        //can now invoke, query, etc
+
+        query(key, function (err, resp) {
+          if (err) {
+            res.send(JSON.stringify({ error: err }));
+          }
+          else {
+            res.send(JSON.stringify({ response: resp }));
+          }
+        });
+
+
+      });
+    }
+  }
+}
+
+
 
 function getArgs(request) {
   var args = [];
