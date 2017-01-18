@@ -52,7 +52,7 @@ var createDataBase = function (callback) {
 // create a document
 var createDocument = function (id, val, callback) {
   // we are specifying the id of the document so we can update and delete it later
-  blockvoteDB.insert({ _id: id, chaincodeID: val }, function (err, data) {
+  blockvoteDB.insert({ _id: id, electionData: val }, function (err, data) {
     callback(err, data);
   });
 };
@@ -78,6 +78,8 @@ var chaincodeID;
 var certFile = 'us.blockchain.ibm.com.cert';
 var chaincodeIDPath = __dirname + "/chaincodeID";
 var chaincodeIDKnown;
+
+var districts = [];
 
 var caUrl;
 var peerUrls = [];
@@ -149,7 +151,7 @@ app.post('/writeVote', function (req, res) {
           }
           else {
             console.log(resp);
-            chaincodeID = resp.chaincodeID
+            chaincodeID = resp.electionData.chaincodeID;
           }
         });
 
@@ -170,7 +172,7 @@ app.post('/writeVote', function (req, res) {
         args2.push(district);
         args2.push(vote);
 
-        invoke(args2, "write", function (err, resp) {
+        invoke(args2, "writePOO", function (err, resp) {
           if (err) {
             res.send(JSON.stringify({ error: err }));
           }
@@ -223,7 +225,7 @@ app.post('/registerUser', function (req, res) {
           }
           else {
             console.log(resp);
-            chaincodeID = resp.chaincodeID
+            chaincodeID = resp.electionData.chaincodeID;
           }
         });
 
@@ -270,6 +272,23 @@ app.post('/readDistrict', function (req, res) {
   var district = req.body.district;
   read(res, userNameAction, district);
 });
+
+
+app.get('/getElectionInfo', function (req, res) {
+  res.setHeader('Content-Type', 'application/json');
+  readDocument(config.chainName, function (err, resp) { //not_found is the err.error if not found
+    if (err) {
+      res.send(JSON.stringify({ error: err }));
+    }
+    else {
+      resp.electionData.chaincodeID="client doesn't need to know. Overriding for security";
+      resp.electionData.answers=["yes","no"];
+      console.log(resp);
+      res.send(JSON.stringify(resp));
+    }
+  });
+});
+
 
 
 app.post('/metadata', function (req, res) {
@@ -333,15 +352,16 @@ function init(callback) { //INITIALIZATION
 
   printNetworkDetails();
 
-  console.log("attempting to read chaincodeID from DB");
+  console.log("attempting to read election meta-data from DB");
   readDocument(config.chainName, function (err, resp) { //not_found is the err.error if not found
     if (!err) {
-      console.log("the chaincodeID was found on the DB");
+      console.log("the election data for " + config.chainName + " was found on the DB");
       chaincodeIDKnown = true;
-      chaincodeID = resp.chaincodeID;
+      chaincodeID = resp.electionData.chaincodeID;
+      districts = resp.electionData.districts;
     }
     else if (err.error === "not_found") {
-      console.log("the chaincodeID was not found on the DB");
+      console.log("the election meta-data for " + config.chainName + " was not found on the DB");
       chaincodeIDKnown = false;
     } else if (err.error !== "not_found") {
       console.log("some other error happened: " + err);
@@ -349,7 +369,7 @@ function init(callback) { //INITIALIZATION
     }
     if (chaincodeIDKnown) {
       console.log("Chaincode was already deployed and users are ready! You can now invoke and query");
-
+      console.log("election districts: " + districts);
       err = new Error();
       err.code = 202;
       err.error = "deployment: chaincode already deployed. Ready to invoke and query"
@@ -403,14 +423,18 @@ function setup() {
       pem: cert
     });
     eventUrls.push("grpcs://" + peers[i].event_host + ":" + peers[i].event_port);
+
     chain.eventHubConnect(eventUrls[0], {
       pem: cert
     });
+
   }
   // Make sure disconnect the eventhub on exit
+
   process.on('exit', function () {
     chain.eventHubDisconnect();
   });
+
 }
 
 function enrollAndRegisterUsers(callback) { //enrolls admin
@@ -463,6 +487,13 @@ function enrollAndRegisterUsers(callback) { //enrolls admin
 
 function deployChaincode(callback) {
   var args = getArgs(config.deployRequest);
+
+  for (var i = 2; i < args.length; i++) { //start at 2 because it is the first of the district names, as per the data model
+    districts.push(args[i]);
+  }
+
+
+
   // Construct the deploy request
   var deployRequest = {
     // Function to trigger
@@ -493,7 +524,14 @@ function deployChaincode(callback) {
       callback(null, results);
     }
     else { //running on bluemix
-      createDocument(config.chainName, chaincodeID, function (err, resp) { //write (chainName: chaincodeID) to db
+      console.log("election districts: " + districts);
+      var electionData =
+        {
+          chaincodeID: chaincodeID,
+          districts: districts
+        };
+
+      createDocument(config.chainName, electionData, function (err, resp) { //write (chainName: chaincodeID) to db
         if (err) {
           console.log("error writing chaincodeid to db after deployement");
           callback(err, null);
@@ -532,6 +570,9 @@ function invoke(args2, func, callback) {
     args: args2
   };
 
+
+  customErr = null;
+
   // Trigger the invoke transaction
   var invokeTx = userObj.invoke(invokeRequest);
 
@@ -543,6 +584,7 @@ function invoke(args2, func, callback) {
   invokeTx.on('complete', function (results) {
     // Invoke transaction completed successfully
     console.log(util.format("\nSuccessfully completed chaincode invoke transaction: request=%j, response=%j", invokeRequest, results));
+    console.log("this means that the function was completed...not if it was successful or had an error");
     callback(null, results);
   });
   invokeTx.on('error', function (err) {
@@ -553,9 +595,10 @@ function invoke(args2, func, callback) {
 
   //Listen to custom events
   var regid = eh.registerChaincodeEvent(chaincodeID, "evtsender", function (event) {
-    console.log(util.format("Custom event received, payload: %j\n", event.payload.toString()));
+    //custom event code
     eh.unregisterChaincodeEvent(regid);
   });
+
 }
 
 function query(key, callback) {
@@ -617,7 +660,7 @@ function read(res, userNameAction, key) {
           }
           else {
             console.log(resp);
-            chaincodeID = resp.chaincodeID
+            chaincodeID = resp.electionData.chaincodeID;
           }
         });
       }

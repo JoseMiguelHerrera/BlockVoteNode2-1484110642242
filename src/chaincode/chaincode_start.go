@@ -108,7 +108,11 @@ func (t *SimpleChaincode) Invoke(stub shim.ChaincodeStubInterface, function stri
 }
 
 func (t *SimpleChaincode) error(stub shim.ChaincodeStubInterface, args []string) ([]byte, error) {
-	return nil, errors.New("generic error")
+	err := stub.SetEvent("evtsender", []byte("generic error"))
+	if err != nil {
+		return nil, err
+	}
+	return nil, nil
 }
 
 func (t *SimpleChaincode) registerToVote(stub shim.ChaincodeStubInterface, args []string) ([]byte, error) { //BY USE ONLY BY ADMIN/REGISTRAR!!
