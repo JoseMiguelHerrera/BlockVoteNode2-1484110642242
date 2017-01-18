@@ -172,7 +172,7 @@ app.post('/writeVote', function (req, res) {
         args2.push(district);
         args2.push(vote);
 
-        invoke(args2, "writePOO", function (err, resp) {
+        invoke(args2, "write", function (err, resp) {
           if (err) {
             res.send(JSON.stringify({ error: err }));
           }

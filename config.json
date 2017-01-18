@@ -1,6 +1,6 @@
 {
-   "chainName":"Referendum Edinburgh",
-   "deployWaitTime":"80",
+   "chainName":"Scottish Independence",
+   "deployWaitTime":"60",
    "user": {
 	    "username": "tommy",
         "affiliation" : "group1"
