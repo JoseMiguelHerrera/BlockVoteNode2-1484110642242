@@ -592,17 +592,18 @@ function setup() {
     });
     eventUrls.push("grpcs://" + peers[i].event_host + ":" + peers[i].event_port);
 
+/*
     chain.eventHubConnect(eventUrls[0], {
       pem: cert
     });
-
+*/
   }
   // Make sure disconnect the eventhub on exit
-
+/*
   process.on('exit', function () {
     chain.eventHubDisconnect();
   });
-
+*/
 }
 
 function enrollAndRegisterUsers(callback) { //enrolls admin
@@ -727,7 +728,7 @@ function deployChaincode(callback) {
 
 //voter, district, vote,
 function invoke(args2, func, callback) {
-  var eh = chain.getEventHub();
+  //var eh = chain.getEventHub();
   // Construct the invoke request
   var invokeRequest = {
     // Name (hash) required for invoke
@@ -760,12 +761,13 @@ function invoke(args2, func, callback) {
     callback(err, null);
   });
 
+/*
   //Listen to custom events
   var regid = eh.registerChaincodeEvent(chaincodeID, "evtsender", function (event) {
     //custom event code
     eh.unregisterChaincodeEvent(regid);
   });
-
+*/
 }
 
 function query(key, callback) {
