@@ -99,27 +99,210 @@ createDataBase(function (err, resp) {
 
 
 
-//******************************************************************************************ROUTES
+//******************************************************************************************ROUTES-REGISTRAR APP
 app.get('/deploy', function (req, res) {
-  //deploy chaincode
+  /*
+  REQUIRES: a proper config file
+  PROMISES: If deployment has already been done, an error mentioning this. If deployment is successful, returns election metadata
+  */
   res.setHeader('Content-Type', 'application/json');
-
   init(function (err, resp) {
     if (err) {
       res.send(JSON.stringify({ error: err }));
     }
     else {
-      res.send(JSON.stringify({ response: resp }));
+
+      read("admin", "metadata", function (err, readRes) {
+        if (err)
+          res.send(JSON.stringify({ error: err }));
+        else {
+          res.send(JSON.stringify({ response: readRes }));
+        }
+      });
     }
   });
 
 
 });
 
-app.post('/writeVote', function (req, res) {
+
+
+app.post('/registerUser', function (req, res) {
+  /*
+REQUIRES:
+POST username: username of registered/enrolled registrar
+POST voter: name of voter who wants to register to vote
+POST reg: 'yes' or 'no', if this voter is allowed to vote
+PROMISES: if a user has already been registered, an error stating so will be returned. If a new registration is successful, you will get the user's record back
+*/
   res.setHeader('Content-Type', 'application/json');
   var userNameAction = req.body.username;
+  var voter = req.body.voter; //voter to be registered
+  var allowedToVote = req.body.reg; //"yes" or "no"
 
+  if (!userNameAction) {
+    err = new Error();
+    err.code = 400;
+    err.message = "you need to supply a username for the actor doing the action";
+    console.log(err.message);
+    res.send(JSON.stringify({ error: err }));
+  }
+  else {
+    if (!voter || !allowedToVote) {
+      err = new Error();
+      err.code = 400;
+      err.message = "you need to supply: a voter to register, and if they are allowed to vote or not: 'yes' or 'no'";
+      console.log(err.message);
+      res.send(JSON.stringify({ error: err }));
+    }
+    else {
+      if (allowedToVote !== "yes" && allowedToVote !== "no") {
+        err = new Error();
+        err.code = 400;
+        err.message = "allowed to vote val needs to be a yes or no";
+        console.log(err.message);
+        res.send(JSON.stringify({ error: err }));
+      }
+      else {
+        // Read chaincodeID and use this for sub sequent Invokes/Queries
+
+        if (runningLocal)
+          chaincodeID = fs.readFileSync(chaincodeIDPath, 'utf8');
+        else { //running on bluemix
+          readDocument(config.chainName, function (err, resp) { //not_found is the err.error if not found
+            if (err) {
+              res.send(JSON.stringify({ error: err }));
+            }
+            else {
+              chaincodeID = resp.electionData.chaincodeID;
+              districts = resp.electionData.districts;
+            }
+          });
+
+        }
+
+        chain.getUser(userNameAction, function (err, user) {
+          if (err) {
+            err2 = new Error();
+            err2.code = 500;
+            err2.message = " Failed to register and enroll " + userNameAction + ": " + err;
+            res.send(JSON.stringify({ error: err2 }));
+          }
+          userObj = user;
+
+          read(userNameAction, voter, function (err, readResp) {
+            if (readResp) {
+              err2 = new Error();
+              err2.code = 400;
+              err2.message = voter + " is already registered";
+              console.log(err2.message);
+              res.send(JSON.stringify({ error: err2 }));
+            }
+            else {
+              var args2 = [];
+              args2.push(voter);
+              args2.push(allowedToVote);
+              args2.push(userNameAction);
+              invoke(args2, "register", function (err, resp) {
+                if (err) {
+                  res.send(JSON.stringify({ error: err }));
+                }
+                else {
+                  read(userNameAction, voter, function (err, readRes) {
+                    if (err)
+                      res.send(JSON.stringify({ error: err }));
+                    else {
+                      res.send(JSON.stringify({ response: readRes }));
+                    }
+                  });
+                }
+              });
+
+            }
+          });
+        });
+      }
+    }
+  }
+
+
+
+
+});
+
+
+
+
+app.post('/readDistrict', function (req, res) {
+  /*REQUIRES:
+  POST username: username of registered/enrolled registrar
+  POST district: name of district you want to get information about
+  POST reg: 'yes' or 'no', if this voter is allowed to vote
+  PROMISES: if a user has already been registered, an error stating so will be returned. If a new registration is successful, you will get the user's record back
+  */
+  res.setHeader('Content-Type', 'application/json');
+  var userNameAction = req.body.username;
+  var district = req.body.district;
+  read(userNameAction, district, function (err, readRes) {
+    if (err)
+      res.send(JSON.stringify({ error: err }));
+    else {
+      res.send(JSON.stringify({ response: readRes }));
+    }
+  });
+});
+
+
+app.get('/getElectionInfo', function (req, res) {
+  /*REQUIRES: for an election to have been deployed from the config file
+PROMISES: name of election, districts inside of it, and the options for voting*/
+
+  res.setHeader('Content-Type', 'application/json');
+  readDocument(config.chainName, function (err, resp) { //not_found is the err.error if not found
+    if (err) {
+      res.send(JSON.stringify({ error: err }));
+    }
+    else {
+      resp.electionData.chaincodeID = "client doesn't need to know. Overriding for security";
+      resp.electionData.answers = ["yes", "no"];
+      console.log(resp);
+      res.send(JSON.stringify(resp));
+    }
+  });
+});
+
+
+
+app.post('/userStatus', function (req, res) {
+  /*REQUIRES:
+POST username: username of registered/enrolled registrar
+POST voter: name of user you want to get the status about
+PROMISES: status of the voter: have they registered and have they votedg*/
+  res.setHeader('Content-Type', 'application/json');
+  var userNameAction = req.body.username;
+  var voter = req.body.voter;
+
+  read(userNameAction, voter, function (err, readRes) {
+    if (err)
+      res.send(JSON.stringify({ error: err }));
+    else {
+      res.send(JSON.stringify({ response: readRes }));
+    }
+  });
+});
+
+
+//******************************************************************************************ROUTES-VOTER APP
+app.post('/writeVote', function (req, res) {
+  /*REQUIRES:
+POST username: username of registered/enrolled registrar
+POST voter: name of user that wants to vote
+POST district: district where the voter wants to vote
+POST vote:  'yes' or 'no' vote
+PROMISES: error if user not registered, error if user has already voted, error is user not authorized to vote, error is vote is invalid, error if district doesn't exist 
+        if successful returns the user's profile */
+  res.setHeader('Content-Type', 'application/json');
+  var userNameAction = req.body.username;
   var voter = req.body.voter;
   var district = req.body.district;
   var vote = req.body.vote;
@@ -140,170 +323,152 @@ app.post('/writeVote', function (req, res) {
       res.send(JSON.stringify({ error: err }));
     }
     else {
-      // Read chaincodeID and use this for sub sequent Invokes/Queries
 
-      if (runningLocal)
-        chaincodeID = fs.readFileSync(chaincodeIDPath, 'utf8');
-      else { //running on bluemix
-        readDocument(config.chainName, function (err, resp) { //not_found is the err.error if not found
-          if (err) {
-            res.send(JSON.stringify({ error: err }));
-          }
-          else {
-            console.log(resp);
-            chaincodeID = resp.electionData.chaincodeID;
-          }
-        });
-
+      if (vote !== "yes" && vote !== "no") {
+        err = new Error();
+        err.code = 400;
+        err.message = "vote val needs to be a yes or no";
+        console.log(err.message);
+        res.send(JSON.stringify({ error: err }));
       }
+      else {
 
-      chain.getUser(userNameAction, function (err, user) {
-        if (err) {
-          err2 = new Error();
-          err2.code = 500;
-          err2.message = " Failed to register and enroll " + deployerName + ": " + err;
-          res.send(JSON.stringify({ error: err2 }));
+        // Read chaincodeID and use this for sub sequent Invokes/Queries
+
+        if (runningLocal)
+          chaincodeID = fs.readFileSync(chaincodeIDPath, 'utf8');
+        else { //running on bluemix
+          readDocument(config.chainName, function (err, resp) { //not_found is the err.error if not found
+            if (err) {
+              res.send(JSON.stringify({ error: err }));
+            }
+            else {
+              chaincodeID = resp.electionData.chaincodeID;
+              districts = resp.electionData.districts;
+            }
+          });
+
         }
-        userObj = user;
 
-        //can now invoke, query, etc
-        var args2 = [];
-        args2.push(voter);
-        args2.push(district);
-        args2.push(vote);
-
-        invoke(args2, "write", function (err, resp) {
+        chain.getUser(userNameAction, function (err, user) {
           if (err) {
-            res.send(JSON.stringify({ error: err }));
+            err2 = new Error();
+            err2.code = 500;
+            err2.message = " Failed to register and enroll " + deployerName + ": " + err;
+            res.send(JSON.stringify({ error: err2 }));
           }
-          else {
-            res.send(JSON.stringify({ response: resp }));
-          }
+          userObj = user;
+
+
+          //check if desired district exists!
+          read(userNameAction, district, function (err, readResp) {
+            if (!readResp) {
+              err2 = new Error();
+              err2.code = 400;
+              err2.message = district + " doesn't exist!";
+              console.log(err2.message);
+              res.send(JSON.stringify({ error: err2 }));
+            }
+            else {
+              read(userNameAction, voter, function (err, readResp) {
+                if (!readResp) { //no record
+                  err2 = new Error();
+                  err2.code = 400;
+                  err2.message = voter + " is not registered. Please register before voting";
+                  console.log(err2.message);
+                  res.send(JSON.stringify({ error: err2 }));
+                }
+                else {
+                  if (JSON.parse(readResp).CanVote === "no") {
+                    err2 = new Error();
+                    err2.code = 400;
+                    err2.message = voter + " is not authorized to vote";
+                    console.log(err2.message);
+                    res.send(JSON.stringify({ error: err2 }));
+                  }
+                  else if (JSON.parse(readResp).HasVoted === "yes") {
+                    err2 = new Error();
+                    err2.code = 400;
+                    err2.message = voter + " already voted. You can only vote once";
+                    console.log(err2.message);
+                    res.send(JSON.stringify({ error: err2 }));
+                  }
+                  else {
+                    //can now invoke, query, etc
+                    var args2 = [];
+                    args2.push(voter);
+                    args2.push(district);
+                    args2.push(vote);
+
+                    invoke(args2, "write", function (err, resp) {
+                      if (err) {
+                        res.send(JSON.stringify({ error: err }));
+                      }
+                      else {
+                        read(userNameAction, voter, function (errE, readResp) {
+                          if (err)
+                            res.send(JSON.stringify({ error: errE }));
+                          else
+                            res.send(JSON.stringify({ response: readResp }));
+                        });
+
+                      }
+                    });
+
+                  }
+                }
+
+              });
+            }
+          });
         });
-
-
-      });
+      }
     }
   }
-
-
-
-
 });
 
-app.post('/registerUser', function (req, res) {
-  res.setHeader('Content-Type', 'application/json');
-  var userNameAction = req.body.username;
+app.post('/isUserRegistered', function (req, res) {
+  /*
+REQUIRES:
+POST username: username of registered/enrolled registrar
+POST voter: name of voter who wants to wants to know if they are registered to vote
+PROMISES: 'yes' or 'no', if they are registered to vote
+*/
 
+  var userNameAction = req.body.username;
   var voter = req.body.voter; //voter to be registered
-  var allowedToVote = req.body.reg; //"yes" or "no"
-
-  if (!userNameAction) {
-    err = new Error();
-    err.code = 400;
-    err.message = "you need to supply a username for the actor doing the action";
-    console.log(err.message);
-    res.send(JSON.stringify({ error: err }));
-  }
-  else {
-    if (!voter || !allowedToVote) {
-      err = new Error();
-      err.code = 400;
-      err.message = "you need to supply: a voter to register, and if they are allowed to vote or not: 'yes' or 'no'";
-      console.log(err.message);
-      res.send(JSON.stringify({ error: err }));
+  res.setHeader('Content-Type', 'application/json');
+  read(userNameAction, voter, function (err, readRes) {
+    if (readRes) {
+      res.send(JSON.stringify({ response: "yes" }));
     }
     else {
-      // Read chaincodeID and use this for sub sequent Invokes/Queries
-
-      if (runningLocal)
-        chaincodeID = fs.readFileSync(chaincodeIDPath, 'utf8');
-      else { //running on bluemix
-        readDocument(config.chainName, function (err, resp) { //not_found is the err.error if not found
-          if (err) {
-            res.send(JSON.stringify({ error: err }));
-          }
-          else {
-            console.log(resp);
-            chaincodeID = resp.electionData.chaincodeID;
-          }
-        });
-
-      }
-
-      chain.getUser(userNameAction, function (err, user) {
-        if (err) {
-          err2 = new Error();
-          err2.code = 500;
-          err2.message = " Failed to register and enroll " + deployerName + ": " + err;
-          res.send(JSON.stringify({ error: err2 }));
-        }
-        userObj = user;
-
-        //can now invoke, query, etc
-        var args2 = [];
-        args2.push(voter);
-        args2.push(allowedToVote);
-        args2.push(userNameAction);
-
-        invoke(args2, "register", function (err, resp) {
-          if (err) {
-            res.send(JSON.stringify({ error: err }));
-          }
-          else {
-            res.send(JSON.stringify({ response: resp }));
-          }
-        });
-
-
-      });
-    }
-  }
-
-
-
-
-});
-
-
-app.post('/readDistrict', function (req, res) {
-  res.setHeader('Content-Type', 'application/json');
-  var userNameAction = req.body.username;
-  var district = req.body.district;
-  read(res, userNameAction, district);
-});
-
-
-app.get('/getElectionInfo', function (req, res) {
-  res.setHeader('Content-Type', 'application/json');
-  readDocument(config.chainName, function (err, resp) { //not_found is the err.error if not found
-    if (err) {
-      res.send(JSON.stringify({ error: err }));
-    }
-    else {
-      resp.electionData.chaincodeID="client doesn't need to know. Overriding for security";
-      resp.electionData.answers=["yes","no"];
-      console.log(resp);
-      res.send(JSON.stringify(resp));
+      res.send(JSON.stringify({ response: "no" }));
     }
   });
 });
 
-
-
 app.post('/metadata', function (req, res) {
+  /*REQUIRES: for an election to have been deployed from the config file
+PROMISES: get overall results of election, plus number of districts and the name of the eleciton*/
   res.setHeader('Content-Type', 'application/json');
   var userNameAction = req.body.username;
-  read(res, userNameAction, "metadata");
+
+  read(userNameAction, "metadata", function (err, readRes) {
+    if (err)
+      res.send(JSON.stringify({ error: err }));
+    else {
+      res.send(JSON.stringify({ response: readRes }));
+    }
+  });
 });
 
-app.post('/userStatus', function (req, res) {
-  res.setHeader('Content-Type', 'application/json');
-  var userNameAction = req.body.username;
-  var voter = req.body.voter;
-  read(res, userNameAction, voter);
+app.get('/elections', function (req, res) {
+//dummy functions which gives you the currently avaible elections (1 election for now, the one in the config)
+  var elections = [];
+  elections.push(config.chainName);
+  res.send(JSON.stringify({ response: elections }));
 });
-
 
 
 
@@ -313,7 +478,6 @@ app.post('/userStatus', function (req, res) {
 function init(callback) { //INITIALIZATION
 
   console.log("Initializing chaincode from config.json");
-
   try {
     config = JSON.parse(fs.readFileSync(__dirname + '/config.json', 'utf8')); //TURN CONFIG.JSON INTO CONFIG OBJECT
   } catch (err) {
@@ -322,66 +486,70 @@ function init(callback) { //INITIALIZATION
     callback(err, null)
   }
 
-  //new user that this whole process creates
-  newUserName = config.user.username;
-
-  // Create a client blockchin.
-
-  if (!chain)
-    chain = hfc.newChain(config.chainName); //USE THE GIVEN CHAIN NAME TO CREATE A CHAIN OBJECT
-
-  certPath = __dirname + "/src/" + config.deployRequest.chaincodePath + "/certificate.pem";  //CREATE PATH TO ADD THE CERTIFICATE
-
-
-
-
-  // Read and process the credentials.json
-  try {
-    network = JSON.parse(fs.readFileSync(__dirname + '/ServiceCredentials.json', 'utf8')); //TURN SERVICECREDENTIALS.JSON INTO NETWORK OBJECT
-    if (network.credentials) network = network.credentials;
-  } catch (err) {
-    console.log("ServiceCredentials.json is missing or invalid file, Rerun the program with right file")
+  if (config.deployRequest.args.length < 3) {
+    err = new Error();
     err.code = 500;
-    callback(err, null)
+    err.message = "Incorrect number of arguments for init. Expecting at least one district name, the number of districts, and the ref name. Check config file";
+    console.log(err.message);
+    callback(err, null);
+  } else { //only continue if we have the min amount of args
+
+    //new user that this whole process creates
+    newUserName = config.user.username;
+    // Create a client blockchin.
+
+    if (!chain)
+      chain = hfc.newChain(config.chainName); //USE THE GIVEN CHAIN NAME TO CREATE A CHAIN OBJECT
+
+    certPath = __dirname + "/src/" + config.deployRequest.chaincodePath + "/certificate.pem";  //CREATE PATH TO ADD THE CERTIFICATE
+
+    // Read and process the credentials.json
+    try {
+      network = JSON.parse(fs.readFileSync(__dirname + '/ServiceCredentials.json', 'utf8')); //TURN SERVICECREDENTIALS.JSON INTO NETWORK OBJECT
+      if (network.credentials) network = network.credentials;
+    } catch (err) {
+      console.log("ServiceCredentials.json is missing or invalid file, Rerun the program with right file")
+      err.code = 500;
+      callback(err, null)
+    }
+
+    peers = network.peers; // EXTRACT PEERS FROM NETWORK OBJECT
+    users = network.users; // EXTRACT USERS FROM NETWORK OBJECT
+
+    setup(); //CALL SET UP: ADDS PEERS FROM SERVICE CREDENTIALS TO BLOCKCHAIN. ALSO GETS THE USERNAME FOR THE NEW USER IN CONFIG
+
+    printNetworkDetails();
+
+    console.log("attempting to read election meta-data from DB");
+    readDocument(config.chainName, function (err, resp) { //not_found is the err.error if not found
+      if (!err) {
+        console.log("the election data for " + config.chainName + " was found on the DB");
+        chaincodeIDKnown = true;
+        chaincodeID = resp.electionData.chaincodeID;
+        districts = resp.electionData.districts;
+      }
+      else if (err.error === "not_found") {
+        console.log("the election meta-data for " + config.chainName + " was not found on the DB");
+        chaincodeIDKnown = false;
+      } else if (err.error !== "not_found") {
+        console.log("some other error happened: " + err);
+        callback(err, null);
+      }
+      if (chaincodeIDKnown) {
+        console.log("Chaincode was already deployed and users are ready! You can now invoke and query");
+        console.log("election districts: " + districts);
+        err = new Error();
+        err.code = 202;
+        err.error = "deployment: chaincode already deployed. Ready to invoke and query"
+        callback(err, null);
+
+      } else {
+        enrollAndRegisterUsers(callback); //ENROLL THE PRE-REGISTERED ADMIN (FROM membersrvc.YAML) AND SERVICECREDENTIALS, CALL deployChaincode!
+      }
+    });
+
+
   }
-
-  peers = network.peers; // EXTRACT PEERS FROM NETWORK OBJECT
-  users = network.users; // EXTRACT USERS FROM NETWORK OBJECT
-
-  setup(); //CALL SET UP: ADDS PEERS FROM SERVICE CREDENTIALS TO BLOCKCHAIN. ALSO GETS THE USERNAME FOR THE NEW USER IN CONFIG
-
-  printNetworkDetails();
-
-  console.log("attempting to read election meta-data from DB");
-  readDocument(config.chainName, function (err, resp) { //not_found is the err.error if not found
-    if (!err) {
-      console.log("the election data for " + config.chainName + " was found on the DB");
-      chaincodeIDKnown = true;
-      chaincodeID = resp.electionData.chaincodeID;
-      districts = resp.electionData.districts;
-    }
-    else if (err.error === "not_found") {
-      console.log("the election meta-data for " + config.chainName + " was not found on the DB");
-      chaincodeIDKnown = false;
-    } else if (err.error !== "not_found") {
-      console.log("some other error happened: " + err);
-      callback(err, null);
-    }
-    if (chaincodeIDKnown) {
-      console.log("Chaincode was already deployed and users are ready! You can now invoke and query");
-      console.log("election districts: " + districts);
-      err = new Error();
-      err.code = 202;
-      err.error = "deployment: chaincode already deployed. Ready to invoke and query"
-      callback(err, null);
-
-    } else {
-      enrollAndRegisterUsers(callback); //ENROLL THE PRE-REGISTERED ADMIN (FROM membersrvc.YAML) AND SERVICECREDENTIALS, CALL deployChaincode!
-    }
-  });
-
-
-
 }
 
 function setup() {
@@ -537,7 +705,7 @@ function deployChaincode(callback) {
           callback(err, null);
         }
         else {
-          console.log("wrote chaincodeid to db after deployement");
+          console.log("wrote election data to db after deployement");
           callback(null, results);
         }
       });
@@ -584,7 +752,6 @@ function invoke(args2, func, callback) {
   invokeTx.on('complete', function (results) {
     // Invoke transaction completed successfully
     console.log(util.format("\nSuccessfully completed chaincode invoke transaction: request=%j, response=%j", invokeRequest, results));
-    console.log("this means that the function was completed...not if it was successful or had an error");
     callback(null, results);
   });
   invokeTx.on('error', function (err) {
@@ -632,13 +799,14 @@ function query(key, callback) {
 }
 
 
-function read(res, userNameAction, key) {
+function read(userNameAction, key, callback) {
   if (!userNameAction) {
     err = new Error();
     err.code = 400;
     err.message = "you need to supply a username for the actor doing the action";
     console.log(err.message);
-    res.send(JSON.stringify({ error: err }));
+    //res.send(JSON.stringify({ error: err }));
+    callback(err, null);
   }
   else {
     if (!key) {
@@ -646,7 +814,8 @@ function read(res, userNameAction, key) {
       err.code = 400;
       err.message = "you need to supply the name of a key that you want to query";
       console.log(err.message);
-      res.send(JSON.stringify({ error: err }));
+      //res.send(JSON.stringify({ error: err }));
+      callback(err, null);
     }
     else {
       // Read chaincodeID and use this for sub sequent Invokes/Queries
@@ -656,11 +825,13 @@ function read(res, userNameAction, key) {
       } else {
         readDocument(config.chainName, function (err, resp) { //not_found is the err.error if not found
           if (err) {
-            res.send(JSON.stringify({ error: err }));
+            //res.send(JSON.stringify({ error: err }));
+            callback(err, null);
+
           }
           else {
-            console.log(resp);
             chaincodeID = resp.electionData.chaincodeID;
+            districts = resp.electionData.districts;
           }
         });
       }
@@ -670,7 +841,9 @@ function read(res, userNameAction, key) {
           err2 = new Error();
           err2.code = 500;
           err2.message = " Failed to register and enroll " + deployerName + ": " + err;
-          res.send(JSON.stringify({ error: err2 }));
+          //res.send(JSON.stringify({ error: err2 }));
+          callback(err2, null);
+
         }
         userObj = user;
 
@@ -678,10 +851,12 @@ function read(res, userNameAction, key) {
 
         query(key, function (err, resp) {
           if (err) {
-            res.send(JSON.stringify({ error: err }));
+            //res.send(JSON.stringify({ error: err }));
+            callback(err, null);
           }
           else {
-            res.send(JSON.stringify({ response: resp }));
+            //res.send(JSON.stringify({ response: resp }));
+            callback(null, resp);
           }
         });
 

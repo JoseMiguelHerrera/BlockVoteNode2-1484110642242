@@ -51,7 +51,7 @@ func (t *SimpleChaincode) Init(stub shim.ChaincodeStubInterface, function string
 	//args: 0: name of referendum, 1: number of districts in referendum, 2+: names of districts
 
 	if len(args) < 3 {
-		return nil, errors.New("Incorrect number of arguments. Expecting at least one district name, the number of districts, and the ref name")
+		return nil, errors.New("Incorrect number of arguments. Expecting at least one district name, the number of districts, and the ref name") //IN NODE TOO!
 	}
 
 	//create meta data
@@ -120,7 +120,7 @@ func (t *SimpleChaincode) registerToVote(stub shim.ChaincodeStubInterface, args 
 	var allowedToVote string //yes or no
 	var registrar string     //who is registering this user
 
-	if len(args) != 3 {
+	if len(args) != 3 { //IN NODE!
 		return nil, errors.New("Incorrect number of arguments. Expecting 3. ID of the person who is being registered to vote,  yes or no, and name of registrar")
 	}
 	name = args[0]
@@ -128,12 +128,12 @@ func (t *SimpleChaincode) registerToVote(stub shim.ChaincodeStubInterface, args 
 	registrar = args[2]
 
 	//check allowedToVote value
-	if strings.TrimRight(allowedToVote, "\n") != "yes" && strings.TrimRight(allowedToVote, "\n") == "no" {
+	if strings.TrimRight(allowedToVote, "\n") != "yes" && strings.TrimRight(allowedToVote, "\n") != "no" { //IN NODE!
 		return nil, errors.New("allowed to vote val needs to be a yes or no")
 	}
 
 	//check if this user already has a record
-	preExistRecord, err := stub.GetState(name) //gets value for the given key
+	preExistRecord, err := stub.GetState(name) //gets value for the given key //IN NODE!
 	if err != nil {                            //error with retrieval
 		return nil, err
 	}
@@ -163,7 +163,7 @@ func (t *SimpleChaincode) write(stub shim.ChaincodeStubInterface, args []string)
 
 	var err error
 
-	if len(args) != 3 {
+	if len(args) != 3 { //IN NODE!
 		return nil, errors.New("Incorrect number of arguments. Expecting 2. ID of the person, district to vote in, and value to set")
 	}
 
