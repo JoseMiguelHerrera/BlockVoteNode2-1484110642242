@@ -99,11 +99,11 @@ createDataBase(function (err, resp) {
 
 
 
-//******************************************************************************************ROUTES-REGISTRAR APP
-app.get('/deploy', function (req, res) {
+//******************************************************************************************ROUTES-REGISTRAR ONLY
+app.get('/init', function (req, res) { //NEEDS TO BE CALLED EVERYTIME THE SERVER IS RESTARTED
   /*
   REQUIRES: a proper config file
-  PROMISES: If deployment has already been done, an error mentioning this. If deployment is successful, returns election metadata
+  PROMISES: If deployment has already been done, an error mentioning this. If deployment is successful, returns election metadata.
   */
   res.setHeader('Content-Type', 'application/json');
   init(function (err, resp) {
@@ -125,21 +125,19 @@ app.get('/deploy', function (req, res) {
 
 });
 
-
-
-app.post('/registerUser', function (req, res) {
+app.post('/authorizeUser', function (req, res) {
   /*
 REQUIRES:
 POST username: username of registered/enrolled registrar
 POST voter: name of voter who wants to register to vote
 POST reg: 'yes' or 'no', if this voter is allowed to vote
-PROMISES: if a user has already been registered, an error stating so will be returned. If a new registration is successful, you will get the user's record back
+PROMISES: if a user has not requested to vote yet, an error stating so will be returned. If a user has already been authorized, return error stating so.
+If an authorization is successful, you will get the user's record back.
 */
   res.setHeader('Content-Type', 'application/json');
   var userNameAction = req.body.username;
   var voter = req.body.voter; //voter to be registered
   var allowedToVote = req.body.reg; //"yes" or "no"
-
   if (!userNameAction) {
     err = new Error();
     err.code = 400;
@@ -165,7 +163,6 @@ PROMISES: if a user has already been registered, an error stating so will be ret
       }
       else {
         // Read chaincodeID and use this for sub sequent Invokes/Queries
-
         if (runningLocal)
           chaincodeID = fs.readFileSync(chaincodeIDPath, 'utf8');
         else { //running on bluemix
@@ -191,47 +188,51 @@ PROMISES: if a user has already been registered, an error stating so will be ret
           userObj = user;
 
           read(userNameAction, voter, function (err, readResp) {
-            if (readResp) {
+            if (!readResp) {
               err2 = new Error();
-              err2.code = 400;
-              err2.message = voter + " is already registered";
+              err2.code = 404;
+              err2.message = voter + " has not yet requested to vote";
               console.log(err2.message);
               res.send(JSON.stringify({ error: err2 }));
             }
             else {
-              var args2 = [];
-              args2.push(voter);
-              args2.push(allowedToVote);
-              args2.push(userNameAction);
-              invoke(args2, "register", function (err, resp) {
-                if (err) {
-                  res.send(JSON.stringify({ error: err }));
-                }
-                else {
-                  read(userNameAction, voter, function (err, readRes) {
-                    if (err)
-                      res.send(JSON.stringify({ error: err }));
-                    else {
-                      res.send(JSON.stringify({ response: readRes }));
-                    }
-                  });
-                }
-              });
-
+              if (allowedToVote === "no") {
+                //do a read, nothing to do here. since the default allowed to vote is already no
+                read(userNameAction, voter, function (err, readRes) {
+                  if (err)
+                    res.send(JSON.stringify({ error: err }));
+                  else {
+                    res.send(JSON.stringify({ response: readRes }));
+                  }
+                });
+              }
+              else {
+                var args2 = [];
+                args2.push(voter);
+                args2.push(allowedToVote);
+                args2.push(userNameAction);
+                invoke(args2, "authorize", function (err, resp) {
+                  if (err) {
+                    res.send(JSON.stringify({ error: err }));
+                  }
+                  else {
+                    read(userNameAction, voter, function (err, readRes) {
+                      if (err)
+                        res.send(JSON.stringify({ error: err }));
+                      else {
+                        res.send(JSON.stringify({ response: readRes }));
+                      }
+                    });
+                  }
+                });
+              }
             }
           });
         });
       }
     }
   }
-
-
-
-
 });
-
-
-
 
 app.post('/readDistrict', function (req, res) {
   /*REQUIRES:
@@ -250,6 +251,113 @@ app.post('/readDistrict', function (req, res) {
       res.send(JSON.stringify({ response: readRes }));
     }
   });
+});
+
+app.post('/userStatus', function (req, res) {
+  /*REQUIRES:
+POST username: username of registered/enrolled registrar
+POST voter: name of user you want to get the status about
+PROMISES: status of the voter: have they registered and have they votedg*/
+  res.setHeader('Content-Type', 'application/json');
+  var userNameAction = req.body.username;
+  var voter = req.body.voter;
+
+  read(userNameAction, voter, function (err, readRes) {
+    if (err)
+      res.send(JSON.stringify({ error: err }));
+    else {
+      res.send(JSON.stringify({ response: readRes }));
+    }
+  });
+});
+
+
+//************************************************************************************************************OTHER ROUTES
+app.post('/requestToVote', function (req, res) {
+  /*
+REQUIRES:
+POST username: username of registered/enrolled registrar
+POST voter: name of voter who is requesting to be eligible to vote
+PROMISES: if a user has already sent a request, an error stating so will be returned, with their authorization status
+If a new registration is successful, you will get the user's record back
+*/
+  res.setHeader('Content-Type', 'application/json');
+  var userNameAction = req.body.username;
+  var voter = req.body.voter; //voter to be registered
+
+  if (!userNameAction) {
+    err = new Error();
+    err.code = 400;
+    err.message = "you need to supply a username for the actor doing the action";
+    console.log(err.message);
+    res.send(JSON.stringify({ error: err }));
+  }
+  else {
+    if (!voter) {
+      err = new Error();
+      err.code = 400;
+      err.message = "you need to supply: the name of the voter wanting to request voting rights";
+      console.log(err.message);
+      res.send(JSON.stringify({ error: err }));
+    }
+    else {
+      // Read chaincodeID and use this for sub sequent Invokes/Queries
+      if (runningLocal)
+        chaincodeID = fs.readFileSync(chaincodeIDPath, 'utf8');
+      else { //running on bluemix
+        readDocument(config.chainName, function (err, resp) { //not_found is the err.error if not found
+          if (err) {
+            res.send(JSON.stringify({ error: err }));
+          }
+          else {
+            chaincodeID = resp.electionData.chaincodeID;
+            districts = resp.electionData.districts;
+          }
+        });
+
+      }
+
+      chain.getUser(userNameAction, function (err, user) {
+        if (err) {
+          err2 = new Error();
+          err2.code = 500;
+          err2.message = " Failed to register and enroll " + userNameAction + ": " + err;
+          res.send(JSON.stringify({ error: err2 }));
+        }
+        userObj = user;
+
+        read(userNameAction, voter, function (err, readResp) {
+          if (readResp) {
+            err2 = new Error();
+            err2.code = 400;
+            err2.message = voter + " has already requested to vote";
+            console.log(err2.message);
+            res.send(JSON.stringify({ error: err2, Authorized: JSON.parse(readResp).Authorized }));
+          }
+          else {
+            var args2 = [];
+            args2.push(voter);
+            args2.push(userNameAction);
+            invoke(args2, "requestToVote", function (err, resp) {
+              if (err) {
+                res.send(JSON.stringify({ error: err }));
+              }
+              else {
+                read(userNameAction, voter, function (err, readRes) {
+                  if (err)
+                    res.send(JSON.stringify({ error: err }));
+                  else {
+                    res.send(JSON.stringify({ response: readRes }));
+                  }
+                });
+              }
+            });
+
+          }
+        });
+      });
+    }
+  }
 });
 
 
@@ -272,27 +380,6 @@ PROMISES: name of election, districts inside of it, and the options for voting*/
 });
 
 
-
-app.post('/userStatus', function (req, res) {
-  /*REQUIRES:
-POST username: username of registered/enrolled registrar
-POST voter: name of user you want to get the status about
-PROMISES: status of the voter: have they registered and have they votedg*/
-  res.setHeader('Content-Type', 'application/json');
-  var userNameAction = req.body.username;
-  var voter = req.body.voter;
-
-  read(userNameAction, voter, function (err, readRes) {
-    if (err)
-      res.send(JSON.stringify({ error: err }));
-    else {
-      res.send(JSON.stringify({ response: readRes }));
-    }
-  });
-});
-
-
-//******************************************************************************************ROUTES-VOTER APP
 app.post('/writeVote', function (req, res) {
   /*REQUIRES:
 POST username: username of registered/enrolled registrar
@@ -374,12 +461,12 @@ PROMISES: error if user not registered, error if user has already voted, error i
                 if (!readResp) { //no record
                   err2 = new Error();
                   err2.code = 400;
-                  err2.message = voter + " is not registered. Please register before voting";
+                  err2.message = voter + " has not requested to vote yet. Please request to vote before voting";
                   console.log(err2.message);
                   res.send(JSON.stringify({ error: err2 }));
                 }
                 else {
-                  if (JSON.parse(readResp).CanVote === "no") {
+                  if (JSON.parse(readResp).Authorized === "no") {
                     err2 = new Error();
                     err2.code = 400;
                     err2.message = voter + " is not authorized to vote";
@@ -427,12 +514,12 @@ PROMISES: error if user not registered, error if user has already voted, error i
   }
 });
 
-app.post('/isUserRegistered', function (req, res) {
+app.post('/UserAuthorizationStatus', function (req, res) {
   /*
 REQUIRES:
 POST username: username of registered/enrolled registrar
-POST voter: name of voter who wants to wants to know if they are registered to vote
-PROMISES: 'yes' or 'no', if they are registered to vote
+POST voter: name of voter who wants to wants to know if they are authorized to vote
+PROMISES: 'yes' or 'no', if they are authorized to vote
 */
 
   var userNameAction = req.body.username;
@@ -440,20 +527,18 @@ PROMISES: 'yes' or 'no', if they are registered to vote
   res.setHeader('Content-Type', 'application/json');
   read(userNameAction, voter, function (err, readRes) {
     if (readRes) {
-      res.send(JSON.stringify({ response: "yes" }));
-    }
-    else {
-      res.send(JSON.stringify({ response: "no" }));
+      res.send(JSON.stringify({ response: JSON.parse(readRes).Authorized }));
+    }else{
+      res.send(err);
     }
   });
 });
 
-app.post('/metadata', function (req, res) {
+app.post('/results', function (req, res) {
   /*REQUIRES: for an election to have been deployed from the config file
 PROMISES: get overall results of election, plus number of districts and the name of the eleciton*/
   res.setHeader('Content-Type', 'application/json');
   var userNameAction = req.body.username;
-
   read(userNameAction, "metadata", function (err, readRes) {
     if (err)
       res.send(JSON.stringify({ error: err }));
@@ -464,7 +549,7 @@ PROMISES: get overall results of election, plus number of districts and the name
 });
 
 app.get('/elections', function (req, res) {
-//dummy functions which gives you the currently avaible elections (1 election for now, the one in the config)
+  //dummy functions which gives you the currently avaible elections (1 election for now, the one in the config)
   var elections = [];
   elections.push(config.chainName);
   res.send(JSON.stringify({ response: elections }));
@@ -592,18 +677,18 @@ function setup() {
     });
     eventUrls.push("grpcs://" + peers[i].event_host + ":" + peers[i].event_port);
 
-/*
-    chain.eventHubConnect(eventUrls[0], {
-      pem: cert
-    });
-*/
+    /*
+        chain.eventHubConnect(eventUrls[0], {
+          pem: cert
+        });
+    */
   }
   // Make sure disconnect the eventhub on exit
-/*
-  process.on('exit', function () {
-    chain.eventHubDisconnect();
-  });
-*/
+  /*
+    process.on('exit', function () {
+      chain.eventHubDisconnect();
+    });
+  */
 }
 
 function enrollAndRegisterUsers(callback) { //enrolls admin
@@ -761,13 +846,13 @@ function invoke(args2, func, callback) {
     callback(err, null);
   });
 
-/*
-  //Listen to custom events
-  var regid = eh.registerChaincodeEvent(chaincodeID, "evtsender", function (event) {
-    //custom event code
-    eh.unregisterChaincodeEvent(regid);
-  });
-*/
+  /*
+    //Listen to custom events
+    var regid = eh.registerChaincodeEvent(chaincodeID, "evtsender", function (event) {
+      //custom event code
+      eh.unregisterChaincodeEvent(regid);
+    });
+  */
 }
 
 function query(key, callback) {
