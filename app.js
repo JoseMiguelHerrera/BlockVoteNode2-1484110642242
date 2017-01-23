@@ -29,7 +29,6 @@ app.listen(appEnv.port, '0.0.0.0', function () {
   console.log("server starting on " + appEnv.url);
 });
 
-
 //******************************************************************************************CLOUDANT FUNCTIONS
 var createDataBase = function (callback) {
   cloudant.db.create('blockvote', function (err, data) {
@@ -87,9 +86,9 @@ var EventUrls = [];
 
 createDataBase(function (err, resp) {
   if (err) { //creation error
-    res.send(JSON.stringify({ error: err }));
+    console.log("fatal error creating database, please start up the server again. error: " + err);
+    process.exit();
   } else {
-
     if (!resp)
       console.log("blockvote db already existed, ready to use")
     else
@@ -108,21 +107,22 @@ app.get('/init', function (req, res) { //NEEDS TO BE CALLED EVERYTIME THE SERVER
   res.setHeader('Content-Type', 'application/json');
   init(function (err, resp) {
     if (err) {
-      res.send(JSON.stringify({ error: err }));
+      res.send(JSON.stringify({ error: err, response: null }));
     }
     else {
-
       read("admin", "metadata", function (err, readRes) {
-        if (err)
-          res.send(JSON.stringify({ error: err }));
+        if (err) {
+          if (err.message.includes("Failed to get data for")) {
+            err.message = "init failed";
+          }
+          res.send(JSON.stringify({ error: err, response: null }));
+        }
         else {
-          res.send(JSON.stringify({ response: readRes }));
+          res.send(JSON.stringify({ response: readRes, error: null }));
         }
       });
     }
   });
-
-
 });
 
 app.post('/authorizeUser', function (req, res) {
@@ -143,7 +143,7 @@ If an authorization is successful, you will get the user's record back.
     err.code = 400;
     err.message = "you need to supply a username for the actor doing the action";
     console.log(err.message);
-    res.send(JSON.stringify({ error: err }));
+    res.send(JSON.stringify({ error: err, response: null }));
   }
   else {
     if (!voter || !allowedToVote) {
@@ -151,7 +151,7 @@ If an authorization is successful, you will get the user's record back.
       err.code = 400;
       err.message = "you need to supply: a voter to register, and if they are allowed to vote or not: 'yes' or 'no'";
       console.log(err.message);
-      res.send(JSON.stringify({ error: err }));
+      res.send(JSON.stringify({ error: err, response: null }));
     }
     else {
       if (allowedToVote !== "yes" && allowedToVote !== "no") {
@@ -159,7 +159,7 @@ If an authorization is successful, you will get the user's record back.
         err.code = 400;
         err.message = "allowed to vote val needs to be a yes or no";
         console.log(err.message);
-        res.send(JSON.stringify({ error: err }));
+        res.send(JSON.stringify({ error: err, response: null }));
       }
       else {
         // Read chaincodeID and use this for sub sequent Invokes/Queries
@@ -168,7 +168,9 @@ If an authorization is successful, you will get the user's record back.
         else { //running on bluemix
           readDocument(config.chainName, function (err, resp) { //not_found is the err.error if not found
             if (err) {
-              res.send(JSON.stringify({ error: err }));
+              err.code = 503;
+              err.message = "error reading election data from database";
+              res.send(JSON.stringify({ error: err, response: null }));
             }
             else {
               chaincodeID = resp.electionData.chaincodeID;
@@ -183,26 +185,26 @@ If an authorization is successful, you will get the user's record back.
             err2 = new Error();
             err2.code = 500;
             err2.message = " Failed to register and enroll " + userNameAction + ": " + err;
-            res.send(JSON.stringify({ error: err2 }));
+            res.send(JSON.stringify({ error: err2, response: null }));
           }
           userObj = user;
 
           read(userNameAction, voter, function (err, readResp) {
-            if (!readResp) {
-              err2 = new Error();
-              err2.code = 404;
-              err2.message = voter + " has not yet requested to vote";
-              console.log(err2.message);
-              res.send(JSON.stringify({ error: err2 }));
+            if (!readResp && err) {
+              if (err.message.includes("Failed to get data for")) {
+                err.message = voter + " has not yet requested to vote, they can't be authorized until they do";
+              }
+              console.log(voter + " has not yet requested to vote");
+              res.send(JSON.stringify({ error: err, response: null }));
             }
             else {
               if (allowedToVote === "no") {
                 //do a read, nothing to do here. since the default allowed to vote is already no
                 read(userNameAction, voter, function (err, readRes) {
                   if (err)
-                    res.send(JSON.stringify({ error: err }));
+                    res.send(JSON.stringify({ error: err, response: null }));
                   else {
-                    res.send(JSON.stringify({ response: readRes }));
+                    res.send(JSON.stringify({ response: readRes, error: null }));
                   }
                 });
               }
@@ -213,14 +215,14 @@ If an authorization is successful, you will get the user's record back.
                 args2.push(userNameAction);
                 invoke(args2, "authorize", function (err, resp) {
                   if (err) {
-                    res.send(JSON.stringify({ error: err }));
+                    res.send(JSON.stringify({ error: err, response: null }));
                   }
                   else {
                     read(userNameAction, voter, function (err, readRes) {
                       if (err)
-                        res.send(JSON.stringify({ error: err }));
+                        res.send(JSON.stringify({ error: err, response: null }));
                       else {
-                        res.send(JSON.stringify({ response: readRes }));
+                        res.send(JSON.stringify({ response: readRes, error: null }));
                       }
                     });
                   }
@@ -245,28 +247,36 @@ app.post('/readDistrict', function (req, res) {
   var userNameAction = req.body.username;
   var district = req.body.district;
   read(userNameAction, district, function (err, readRes) {
-    if (err)
-      res.send(JSON.stringify({ error: err }));
+    if (err) {
+      if (err.message.includes("Failed to get data for")) {
+        err.message = district + " is not a valid district";
+      }
+      res.send(JSON.stringify({ error: err, response: null }));
+    }
     else {
-      res.send(JSON.stringify({ response: readRes }));
+      res.send(JSON.stringify({ response: readRes, error: null }));
     }
   });
 });
 
-app.post('/userStatus', function (req, res) {
+app.post('/UserStatus', function (req, res) {
   /*REQUIRES:
 POST username: username of registered/enrolled registrar
 POST voter: name of user you want to get the status about
-PROMISES: status of the voter: have they registered and have they votedg*/
+PROMISES: status of the voter: have they been authorized and have they voted, error if hey haven't requested to vote yet*/
   res.setHeader('Content-Type', 'application/json');
   var userNameAction = req.body.username;
   var voter = req.body.voter;
 
   read(userNameAction, voter, function (err, readRes) {
-    if (err)
-      res.send(JSON.stringify({ error: err }));
+    if (err) {
+      if (err.message.includes("Failed to get data for")) {
+        err.message = voter + " has not yet requested to vote";
+      }
+      res.send(JSON.stringify({ error: err, response: null }));
+    }
     else {
-      res.send(JSON.stringify({ response: readRes }));
+      res.send(JSON.stringify({ response: readRes, error: null }));
     }
   });
 });
@@ -290,7 +300,7 @@ If a new registration is successful, you will get the user's record back
     err.code = 400;
     err.message = "you need to supply a username for the actor doing the action";
     console.log(err.message);
-    res.send(JSON.stringify({ error: err }));
+    res.send(JSON.stringify({ error: err, response: null }));
   }
   else {
     if (!voter) {
@@ -298,7 +308,7 @@ If a new registration is successful, you will get the user's record back
       err.code = 400;
       err.message = "you need to supply: the name of the voter wanting to request voting rights";
       console.log(err.message);
-      res.send(JSON.stringify({ error: err }));
+      res.send(JSON.stringify({ error: err, response: null }));
     }
     else {
       // Read chaincodeID and use this for sub sequent Invokes/Queries
@@ -307,7 +317,9 @@ If a new registration is successful, you will get the user's record back
       else { //running on bluemix
         readDocument(config.chainName, function (err, resp) { //not_found is the err.error if not found
           if (err) {
-            res.send(JSON.stringify({ error: err }));
+            err.code = 503;
+            err.message = "error reading election info from database";
+            res.send(JSON.stringify({ error: err, response: null }));
           }
           else {
             chaincodeID = resp.electionData.chaincodeID;
@@ -322,7 +334,7 @@ If a new registration is successful, you will get the user's record back
           err2 = new Error();
           err2.code = 500;
           err2.message = " Failed to register and enroll " + userNameAction + ": " + err;
-          res.send(JSON.stringify({ error: err2 }));
+          res.send(JSON.stringify({ error: err2, response: null }));
         }
         userObj = user;
 
@@ -332,27 +344,35 @@ If a new registration is successful, you will get the user's record back
             err2.code = 400;
             err2.message = voter + " has already requested to vote";
             console.log(err2.message);
-            res.send(JSON.stringify({ error: err2, Authorized: JSON.parse(readResp).Authorized }));
+            res.send(JSON.stringify({ error: err2, response: null }));
           }
           else {
-            var args2 = [];
-            args2.push(voter);
-            args2.push(userNameAction);
-            invoke(args2, "requestToVote", function (err, resp) {
-              if (err) {
-                res.send(JSON.stringify({ error: err }));
-              }
-              else {
-                read(userNameAction, voter, function (err, readRes) {
-                  if (err)
-                    res.send(JSON.stringify({ error: err }));
-                  else {
-                    res.send(JSON.stringify({ response: readRes }));
-                  }
-                });
-              }
-            });
-
+            if (!err.message.includes("Failed to get data for")) {
+              err.message = " unknown query error";
+              res.send(JSON.stringify({ error: err, response: null }));
+            }
+            else {
+              var args2 = [];
+              args2.push(voter);
+              args2.push(userNameAction);
+              invoke(args2, "requestToVote", function (err, resp) {
+                if (err) {
+                  res.send(JSON.stringify({ error: err, response: null }));
+                }
+                else {
+                  read(userNameAction, voter, function (err, readRes) {
+                    if (err) {
+                      if (err.message.includes("Failed to get data for")) {
+                        err.message = "request to vote failed";
+                      }
+                      res.send(JSON.stringify({ error: err, response: null }));
+                    } else {
+                      res.send(JSON.stringify({ response: readRes, error: null }));
+                    }
+                  });
+                }
+              });
+            }
           }
         });
       });
@@ -368,13 +388,15 @@ PROMISES: name of election, districts inside of it, and the options for voting*/
   res.setHeader('Content-Type', 'application/json');
   readDocument(config.chainName, function (err, resp) { //not_found is the err.error if not found
     if (err) {
-      res.send(JSON.stringify({ error: err }));
+      err.code = 503;
+      err.message = "error reading election info from database databse";
+      res.send(JSON.stringify({ error: err, response: null }));
     }
     else {
       resp.electionData.chaincodeID = "client doesn't need to know. Overriding for security";
       resp.electionData.answers = ["yes", "no"];
       console.log(resp);
-      res.send(JSON.stringify(resp));
+      res.send(JSON.stringify({ response: resp, error: null }));
     }
   });
 });
@@ -399,7 +421,7 @@ PROMISES: error if user not registered, error if user has already voted, error i
     err.code = 400;
     err.message = "you need to supply a username for the actor doing the action";
     console.log(err.message);
-    res.send(JSON.stringify({ error: err }));
+    res.send(JSON.stringify({ error: err, response: null }));
   }
   else {
     if (!voter || !district || !vote) {
@@ -407,7 +429,7 @@ PROMISES: error if user not registered, error if user has already voted, error i
       err.code = 400;
       err.message = "you need to supply: a voter, a vote, and the name of the district where the vote occurs";
       console.log(err.message);
-      res.send(JSON.stringify({ error: err }));
+      res.send(JSON.stringify({ error: err, response: null }));
     }
     else {
 
@@ -416,18 +438,18 @@ PROMISES: error if user not registered, error if user has already voted, error i
         err.code = 400;
         err.message = "vote val needs to be a yes or no";
         console.log(err.message);
-        res.send(JSON.stringify({ error: err }));
+        res.send(JSON.stringify({ error: err, response: null }));
       }
       else {
-
         // Read chaincodeID and use this for sub sequent Invokes/Queries
-
         if (runningLocal)
           chaincodeID = fs.readFileSync(chaincodeIDPath, 'utf8');
         else { //running on bluemix
           readDocument(config.chainName, function (err, resp) { //not_found is the err.error if not found
             if (err) {
-              res.send(JSON.stringify({ error: err }));
+              err.code = 503;
+              err.message = "error reading election info from database databse";
+              res.send(JSON.stringify({ error: err, response: null }));
             }
             else {
               chaincodeID = resp.electionData.chaincodeID;
@@ -442,7 +464,7 @@ PROMISES: error if user not registered, error if user has already voted, error i
             err2 = new Error();
             err2.code = 500;
             err2.message = " Failed to register and enroll " + deployerName + ": " + err;
-            res.send(JSON.stringify({ error: err2 }));
+            res.send(JSON.stringify({ error: err2, response: null }));
           }
           userObj = user;
 
@@ -450,61 +472,64 @@ PROMISES: error if user not registered, error if user has already voted, error i
           //check if desired district exists!
           read(userNameAction, district, function (err, readResp) {
             if (!readResp) {
-              err2 = new Error();
-              err2.code = 400;
-              err2.message = district + " doesn't exist!";
-              console.log(err2.message);
-              res.send(JSON.stringify({ error: err2 }));
+
+              if (err.message.includes("Failed to get data for")) {
+                err.message = district + " does not exist";
+              }
+
+              console.log(err.message);
+              res.send(JSON.stringify({ error: err, response: null }));
             }
             else {
               read(userNameAction, voter, function (err, readResp) {
                 if (!readResp) { //no record
-                  err2 = new Error();
-                  err2.code = 400;
-                  err2.message = voter + " has not requested to vote yet. Please request to vote before voting";
-                  console.log(err2.message);
-                  res.send(JSON.stringify({ error: err2 }));
-                }
-                else {
-                  if (JSON.parse(readResp).Authorized === "no") {
-                    err2 = new Error();
-                    err2.code = 400;
-                    err2.message = voter + " is not authorized to vote";
-                    console.log(err2.message);
-                    res.send(JSON.stringify({ error: err2 }));
-                  }
-                  else if (JSON.parse(readResp).HasVoted === "yes") {
-                    err2 = new Error();
-                    err2.code = 400;
-                    err2.message = voter + " already voted. You can only vote once";
-                    console.log(err2.message);
-                    res.send(JSON.stringify({ error: err2 }));
+
+                  if (err.message.includes("Failed to get data for")) {
+                    err.message = voter + " has not requested to vote yet. Please request to vote before voting";
+
+                    console.log(err.message);
+                    res.send(JSON.stringify({ error: err, response: null }));
                   }
                   else {
-                    //can now invoke, query, etc
-                    var args2 = [];
-                    args2.push(voter);
-                    args2.push(district);
-                    args2.push(vote);
+                    if (JSON.parse(readResp).Authorized === "no") {
+                      err2 = new Error();
+                      err2.code = 400;
+                      err2.message = voter + " is not authorized to vote";
+                      console.log(err2.message);
+                      res.send(JSON.stringify({ error: err2, response: null }));
+                    }
+                    else if (JSON.parse(readResp).HasVoted === "yes") {
+                      err2 = new Error();
+                      err2.code = 400;
+                      err2.message = voter + " already voted. You can only vote once";
+                      console.log(err2.message);
+                      res.send(JSON.stringify({ error: err2, response: null }));
+                    }
+                    else {
+                      //can now invoke, query, etc
+                      var args2 = [];
+                      args2.push(voter);
+                      args2.push(district);
+                      args2.push(vote);
 
-                    invoke(args2, "write", function (err, resp) {
-                      if (err) {
-                        res.send(JSON.stringify({ error: err }));
-                      }
-                      else {
-                        read(userNameAction, voter, function (errE, readResp) {
-                          if (err)
-                            res.send(JSON.stringify({ error: errE }));
-                          else
-                            res.send(JSON.stringify({ response: readResp }));
-                        });
+                      invoke(args2, "write", function (err, resp) {
+                        if (err) {
+                          res.send(JSON.stringify({ error: err, response: null }));
+                        }
+                        else {
+                          read(userNameAction, voter, function (errE, readResp) {
+                            if (err)
+                              res.send(JSON.stringify({ error: errE, response: null }));
+                            else
+                              res.send(JSON.stringify({ response: readResp, error: null }));
+                          });
 
-                      }
-                    });
+                        }
+                      });
 
+                    }
                   }
                 }
-
               });
             }
           });
@@ -519,7 +544,7 @@ app.post('/UserAuthorizationStatus', function (req, res) {
 REQUIRES:
 POST username: username of registered/enrolled registrar
 POST voter: name of voter who wants to wants to know if they are authorized to vote
-PROMISES: 'yes' or 'no', if they are authorized to vote
+PROMISES: 'yes' or 'no', if they are authorized to vote, error if they have not yet requested to vote
 */
 
   var userNameAction = req.body.username;
@@ -527,9 +552,12 @@ PROMISES: 'yes' or 'no', if they are authorized to vote
   res.setHeader('Content-Type', 'application/json');
   read(userNameAction, voter, function (err, readRes) {
     if (readRes) {
-      res.send(JSON.stringify({ response: JSON.parse(readRes).Authorized }));
-    }else{
-      res.send(err);
+      res.send(JSON.stringify({ response: JSON.parse(readRes).Authorized, error: null }));
+    } else {
+      if (err.message.includes("Failed to get data for")) {
+        err.message = voter + " has not yet requested to vote, they have no auth status";
+      }
+      res.send(JSON.stringify({ response: null, error: err }));
     }
   });
 });
@@ -540,10 +568,13 @@ PROMISES: get overall results of election, plus number of districts and the name
   res.setHeader('Content-Type', 'application/json');
   var userNameAction = req.body.username;
   read(userNameAction, "metadata", function (err, readRes) {
-    if (err)
-      res.send(JSON.stringify({ error: err }));
-    else {
-      res.send(JSON.stringify({ response: readRes }));
+    if (err) {
+      if (err.message.includes("Failed to get data for")) {
+        err.message ="election has not yet been initializied properly";
+      }
+      res.send(JSON.stringify({ error: err, response: null }));
+    } else {
+      res.send(JSON.stringify({ response: readRes, error: null }));
     }
   });
 });
@@ -552,7 +583,7 @@ app.get('/elections', function (req, res) {
   //dummy functions which gives you the currently avaible elections (1 election for now, the one in the config)
   var elections = [];
   elections.push(config.chainName);
-  res.send(JSON.stringify({ response: elections }));
+  res.send(JSON.stringify({ response: elections, error: null }));
 });
 
 
@@ -561,13 +592,13 @@ app.get('/elections', function (req, res) {
 //******************************************************************************************HFC FUNCTIONS
 
 function init(callback) { //INITIALIZATION
-
   console.log("Initializing chaincode from config.json");
   try {
     config = JSON.parse(fs.readFileSync(__dirname + '/config.json', 'utf8')); //TURN CONFIG.JSON INTO CONFIG OBJECT
   } catch (err) {
-    console.log("config.json is missing or invalid file, Rerun the program with right file")
+    err.message = "config.json is missing or invalid file, Rerun the program with right file";
     err.code = 500;
+    console.log(err.message)
     callback(err, null)
   }
 
@@ -593,8 +624,9 @@ function init(callback) { //INITIALIZATION
       network = JSON.parse(fs.readFileSync(__dirname + '/ServiceCredentials.json', 'utf8')); //TURN SERVICECREDENTIALS.JSON INTO NETWORK OBJECT
       if (network.credentials) network = network.credentials;
     } catch (err) {
-      console.log("ServiceCredentials.json is missing or invalid file, Rerun the program with right file")
       err.code = 500;
+      err.message = "ServiceCredentials.json is missing or invalid file, Rerun the program with right file";
+      console.log(err.message);
       callback(err, null)
     }
 
@@ -618,6 +650,8 @@ function init(callback) { //INITIALIZATION
         chaincodeIDKnown = false;
       } else if (err.error !== "not_found") {
         console.log("some other error happened: " + err);
+        err.message = "unknown error happened on the database"
+        err.code = 503;
         callback(err, null);
       }
       if (chaincodeIDKnown) {
@@ -625,7 +659,7 @@ function init(callback) { //INITIALIZATION
         console.log("election districts: " + districts);
         err = new Error();
         err.code = 202;
-        err.error = "deployment: chaincode already deployed. Ready to invoke and query"
+        err.message = "deployment: chaincode already deployed. Ready to invoke and query"
         callback(err, null);
 
       } else {
@@ -699,7 +733,7 @@ function enrollAndRegisterUsers(callback) { //enrolls admin
     if (err) {
       err = new Error();
       err.code = 500;
-      err.error = "failed to enroll admin : " + err;
+      err.message = "failed to enroll admin : " + err;
       callback(err, null)
     }
 
@@ -722,7 +756,7 @@ function enrollAndRegisterUsers(callback) { //enrolls admin
       if (err) {
         err = new Error();
         err.code = 500;
-        err.error = " Failed to register and enroll " + newUserName + ": " + err;
+        err.message = " Failed to register and enroll " + newUserName + ": " + err;
         callback(err, null);
       }
       console.log("\nEnrolled and registered " + newUserName + " successfully");
@@ -759,11 +793,8 @@ function deployChaincode(callback) {
     certificatePath: network.cert_path
   };
 
-
-
   // Trigger the deploy transaction
   var deployTx = userObj.deploy(deployRequest);
-
 
   // Print the deploy results
   deployTx.on('complete', function (results) {
@@ -787,7 +818,9 @@ function deployChaincode(callback) {
 
       createDocument(config.chainName, electionData, function (err, resp) { //write (chainName: chaincodeID) to db
         if (err) {
-          console.log("error writing chaincodeid to db after deployement");
+          err.code = 503;
+          err.message = "error writing chaincodeid to databse after deployement";
+          console.log(err.message);
           callback(err, null);
         }
         else {
@@ -796,17 +829,15 @@ function deployChaincode(callback) {
         }
       });
     }
-
   });
 
   deployTx.on('error', function (err) {
     // Deploy request failed
     console.log(util.format("\nFailed to deploy chaincode: request=%j, error=%j", deployRequest, err));
+    err.message = "chaincode error, failed to deploy chaincode"
+    err.code = 504;
     callback(err, null);
   });
-
-
-
 
 }
 
@@ -843,6 +874,8 @@ function invoke(args2, func, callback) {
   invokeTx.on('error', function (err) {
     // Invoke transaction submission failed
     console.log(util.format("\nFailed to submit chaincode invoke transaction: request=%j, error=%j", invokeRequest, err));
+    err.code = 504;
+    err.message = "chaincode error: Failed to submit chaincode invoke"
     callback(err, null);
   });
 
@@ -881,7 +914,10 @@ function query(key, callback) {
   queryTx.on('error', function (err) {
     // Query failed
     console.log("\nFailed to query chaincode, function: request=%j, error=%j", queryRequest, err);
-    callback(err.msg.toString(), null);
+    err2 = new Error();
+    err2.code = 504;
+    err2.message = err.msg;
+    callback(err2, null);
   });
 }
 
@@ -892,7 +928,6 @@ function read(userNameAction, key, callback) {
     err.code = 400;
     err.message = "you need to supply a username for the actor doing the action";
     console.log(err.message);
-    //res.send(JSON.stringify({ error: err }));
     callback(err, null);
   }
   else {
@@ -901,20 +936,17 @@ function read(userNameAction, key, callback) {
       err.code = 400;
       err.message = "you need to supply the name of a key that you want to query";
       console.log(err.message);
-      //res.send(JSON.stringify({ error: err }));
       callback(err, null);
     }
     else {
       // Read chaincodeID and use this for sub sequent Invokes/Queries
-
       if (runningLocal) {
         chaincodeID = fs.readFileSync(chaincodeIDPath, 'utf8');
       } else {
         readDocument(config.chainName, function (err, resp) { //not_found is the err.error if not found
           if (err) {
-            //res.send(JSON.stringify({ error: err }));
+            err.message = "error while reading document with key: " + key;
             callback(err, null);
-
           }
           else {
             chaincodeID = resp.electionData.chaincodeID;
@@ -928,7 +960,6 @@ function read(userNameAction, key, callback) {
           err2 = new Error();
           err2.code = 500;
           err2.message = " Failed to register and enroll " + deployerName + ": " + err;
-          //res.send(JSON.stringify({ error: err2 }));
           callback(err2, null);
 
         }
@@ -938,11 +969,9 @@ function read(userNameAction, key, callback) {
 
         query(key, function (err, resp) {
           if (err) {
-            //res.send(JSON.stringify({ error: err }));
             callback(err, null);
           }
           else {
-            //res.send(JSON.stringify({ response: resp }));
             callback(null, resp);
           }
         });
