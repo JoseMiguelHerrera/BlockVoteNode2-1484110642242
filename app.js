@@ -64,7 +64,6 @@ var readDocument = function (id, callback) {
 };
 
 //******************************************************************************************GLOBAL VARIABLES
-var runningLocal = false; //leave this as false, I am phasing out the writing to the file system
 var config;
 var chain;
 var network;
@@ -79,6 +78,7 @@ var chaincodeIDPath = __dirname + "/chaincodeID";
 var chaincodeIDKnown;
 
 var districts = [];
+var voteOptions = [];
 
 var caUrl;
 var peerUrls = [];
@@ -112,7 +112,7 @@ app.get('/init', function (req, res) { //NEEDS TO BE CALLED EVERYTIME THE SERVER
     else {
       read("admin", "metadata", function (err, readRes) {
         if (err) {
-          if (err.message.includes("Failed to get data for")) {
+          if (err.message.includes("No data exists for")) {
             err.message = "init failed";
           }
           res.send(JSON.stringify({ error: err, response: null }));
@@ -163,22 +163,20 @@ If an authorization is successful, you will get the user's record back.
       }
       else {
         // Read chaincodeID and use this for sub sequent Invokes/Queries
-        if (runningLocal)
-          chaincodeID = fs.readFileSync(chaincodeIDPath, 'utf8');
-        else { //running on bluemix
-          readDocument(config.chainName, function (err, resp) { //not_found is the err.error if not found
-            if (err) {
-              err.code = 503;
-              err.message = "error reading election data from database";
-              res.send(JSON.stringify({ error: err, response: null }));
-            }
-            else {
-              chaincodeID = resp.electionData.chaincodeID;
-              districts = resp.electionData.districts;
-            }
-          });
+        readDocument(config.chainName, function (err, resp) { //not_found is the err.error if not found
+          if (err) {
+            err.code = 503;
+            err.message = "error reading election data from database";
+            res.send(JSON.stringify({ error: err, response: null }));
+          }
+          else {
+            chaincodeID = resp.electionData.chaincodeID;
+            districts = resp.electionData.districts;
+            voteOptions=resp.electionData.voteOptions;
+          }
+        });
 
-        }
+
 
         chain.getUser(userNameAction, function (err, user) {
           if (err) {
@@ -191,7 +189,7 @@ If an authorization is successful, you will get the user's record back.
 
           read(userNameAction, voter, function (err, readResp) {
             if (!readResp && err) {
-              if (err.message.includes("Failed to get data for")) {
+              if (err.message.includes("No data exists for")) {
                 err.message = voter + " has not yet requested to vote, they can't be authorized until they do";
               }
               console.log(voter + " has not yet requested to vote");
@@ -218,13 +216,8 @@ If an authorization is successful, you will get the user's record back.
                     res.send(JSON.stringify({ error: err, response: null }));
                   }
                   else {
-                    read(userNameAction, voter, function (err, readRes) {
-                      if (err)
-                        res.send(JSON.stringify({ error: err, response: null }));
-                      else {
-                        res.send(JSON.stringify({ response: readRes, error: null }));
-                      }
-                    });
+                    resp.disclaimer = "This authorization need to be double checked";
+                    res.send(JSON.stringify({ response: resp, error: null }));
                   }
                 });
               }
@@ -248,7 +241,7 @@ app.post('/readDistrict', function (req, res) {
   var district = req.body.district;
   read(userNameAction, district, function (err, readRes) {
     if (err) {
-      if (err.message.includes("Failed to get data for")) {
+      if (err.message.includes("No data exists for")) {
         err.message = district + " is not a valid district";
       }
       res.send(JSON.stringify({ error: err, response: null }));
@@ -270,7 +263,7 @@ PROMISES: status of the voter: have they been authorized and have they voted, er
 
   read(userNameAction, voter, function (err, readRes) {
     if (err) {
-      if (err.message.includes("Failed to get data for")) {
+      if (err.message.includes("No data exists for")) {
         err.message = voter + " has not yet requested to vote";
       }
       res.send(JSON.stringify({ error: err, response: null }));
@@ -312,22 +305,18 @@ If a new registration is successful, you will get the user's record back
     }
     else {
       // Read chaincodeID and use this for sub sequent Invokes/Queries
-      if (runningLocal)
-        chaincodeID = fs.readFileSync(chaincodeIDPath, 'utf8');
-      else { //running on bluemix
-        readDocument(config.chainName, function (err, resp) { //not_found is the err.error if not found
-          if (err) {
-            err.code = 503;
-            err.message = "error reading election info from database";
-            res.send(JSON.stringify({ error: err, response: null }));
-          }
-          else {
-            chaincodeID = resp.electionData.chaincodeID;
-            districts = resp.electionData.districts;
-          }
-        });
-
-      }
+      readDocument(config.chainName, function (err, resp) { //not_found is the err.error if not found
+        if (err) {
+          err.code = 503;
+          err.message = "error reading election info from database";
+          res.send(JSON.stringify({ error: err, response: null }));
+        }
+        else {
+          chaincodeID = resp.electionData.chaincodeID;
+          districts = resp.electionData.districts;
+          voteOptions=resp.electionData.voteOptions;
+        }
+      });
 
       chain.getUser(userNameAction, function (err, user) {
         if (err) {
@@ -347,7 +336,8 @@ If a new registration is successful, you will get the user's record back
             res.send(JSON.stringify({ error: err2, response: null }));
           }
           else {
-            if (!err.message.includes("Failed to get data for")) {
+            if (!err.message.includes("No data exists for")) {
+              console.log(err.message);
               err.message = " unknown query error";
               res.send(JSON.stringify({ error: err, response: null }));
             }
@@ -360,19 +350,12 @@ If a new registration is successful, you will get the user's record back
                   res.send(JSON.stringify({ error: err, response: null }));
                 }
                 else {
-                  read(userNameAction, voter, function (err, readRes) {
-                    if (err) {
-                      if (err.message.includes("Failed to get data for")) {
-                        err.message = "request to vote failed";
-                      }
-                      res.send(JSON.stringify({ error: err, response: null }));
-                    } else {
-                      res.send(JSON.stringify({ response: readRes, error: null }));
-                    }
-                  });
+                  resp.disclaimer = "This vote request need to be double checked";
+                  res.send(JSON.stringify({ response: resp, error: null }));
                 }
               });
             }
+
           }
         });
       });
@@ -393,8 +376,8 @@ PROMISES: name of election, districts inside of it, and the options for voting*/
       res.send(JSON.stringify({ error: err, response: null }));
     }
     else {
-      resp.electionData.chaincodeID = "client doesn't need to know. Overriding for security";
-      resp.electionData.answers = ["yes", "no"];
+      delete resp.electionData.chaincodeID;
+      delete resp._rev;
       console.log(resp);
       res.send(JSON.stringify({ response: resp, error: null }));
     }
@@ -407,7 +390,7 @@ app.post('/writeVote', function (req, res) {
 POST username: username of registered/enrolled registrar
 POST voter: name of user that wants to vote
 POST district: district where the voter wants to vote
-POST vote:  'yes' or 'no' vote
+POST vote:  a vote choice that is in the allowed voting choices in config.json
 PROMISES: error if user not registered, error if user has already voted, error is user not authorized to vote, error is vote is invalid, error if district doesn't exist 
         if successful returns the user's profile */
   res.setHeader('Content-Type', 'application/json');
@@ -432,33 +415,28 @@ PROMISES: error if user not registered, error if user has already voted, error i
       res.send(JSON.stringify({ error: err, response: null }));
     }
     else {
+      // Read chaincodeID and use this for sub sequent Invokes/Queries
+      readDocument(config.chainName, function (err, resp) { //not_found is the err.error if not found
+        if (err) {
+          err.code = 503;
+          err.message = "error reading election info from database";
+          res.send(JSON.stringify({ error: err, response: null }));
+        }
+        else {
+          chaincodeID = resp.electionData.chaincodeID;
+          districts = resp.electionData.districts;
+          voteOptions = resp.electionData.voteOptions;
+        }
+      });
 
-      if (vote !== "yes" && vote !== "no") {
+      if (voteOptions.indexOf(vote) === -1) {
         err = new Error();
         err.code = 400;
-        err.message = "vote val needs to be a yes or no";
+        err.message = vote + " is an invalid vote";
         console.log(err.message);
         res.send(JSON.stringify({ error: err, response: null }));
       }
       else {
-        // Read chaincodeID and use this for sub sequent Invokes/Queries
-        if (runningLocal)
-          chaincodeID = fs.readFileSync(chaincodeIDPath, 'utf8');
-        else { //running on bluemix
-          readDocument(config.chainName, function (err, resp) { //not_found is the err.error if not found
-            if (err) {
-              err.code = 503;
-              err.message = "error reading election info from database databse";
-              res.send(JSON.stringify({ error: err, response: null }));
-            }
-            else {
-              chaincodeID = resp.electionData.chaincodeID;
-              districts = resp.electionData.districts;
-            }
-          });
-
-        }
-
         chain.getUser(userNameAction, function (err, user) {
           if (err) {
             err2 = new Error();
@@ -473,7 +451,7 @@ PROMISES: error if user not registered, error if user has already voted, error i
           read(userNameAction, district, function (err, readResp) {
             if (!readResp) {
 
-              if (err.message.includes("Failed to get data for")) {
+              if (err.message.includes("No data exists for")) {
                 err.message = district + " does not exist";
               }
 
@@ -483,51 +461,44 @@ PROMISES: error if user not registered, error if user has already voted, error i
             else {
               read(userNameAction, voter, function (err, readResp) {
                 if (!readResp) { //no record
-
-                  if (err.message.includes("Failed to get data for")) {
+                  if (err.message.includes("No data exists for")) {
                     err.message = voter + " has not requested to vote yet. Please request to vote before voting";
-
                     console.log(err.message);
                     res.send(JSON.stringify({ error: err, response: null }));
                   }
+                }
+                else {
+                  if (JSON.parse(readResp).Authorized === "no") {
+                    err2 = new Error();
+                    err2.code = 400;
+                    err2.message = voter + " is not authorized to vote";
+                    console.log(err2.message);
+                    res.send(JSON.stringify({ error: err2, response: null }));
+                  }
+                  else if (JSON.parse(readResp).HasVoted === "yes") {
+                    err2 = new Error();
+                    err2.code = 400;
+                    err2.message = voter + " already voted. You can only vote once";
+                    console.log(err2.message);
+                    res.send(JSON.stringify({ error: err2, response: null }));
+                  }
                   else {
-                    if (JSON.parse(readResp).Authorized === "no") {
-                      err2 = new Error();
-                      err2.code = 400;
-                      err2.message = voter + " is not authorized to vote";
-                      console.log(err2.message);
-                      res.send(JSON.stringify({ error: err2, response: null }));
-                    }
-                    else if (JSON.parse(readResp).HasVoted === "yes") {
-                      err2 = new Error();
-                      err2.code = 400;
-                      err2.message = voter + " already voted. You can only vote once";
-                      console.log(err2.message);
-                      res.send(JSON.stringify({ error: err2, response: null }));
-                    }
-                    else {
-                      //can now invoke, query, etc
-                      var args2 = [];
-                      args2.push(voter);
-                      args2.push(district);
-                      args2.push(vote);
+                    //can now invoke, query, etc
+                    var args2 = [];
+                    args2.push(voter);
+                    args2.push(district);
+                    args2.push(vote);
 
-                      invoke(args2, "write", function (err, resp) {
-                        if (err) {
-                          res.send(JSON.stringify({ error: err, response: null }));
-                        }
-                        else {
-                          read(userNameAction, voter, function (errE, readResp) {
-                            if (err)
-                              res.send(JSON.stringify({ error: errE, response: null }));
-                            else
-                              res.send(JSON.stringify({ response: readResp, error: null }));
-                          });
+                    invoke(args2, "write", function (err, resp) {
+                      if (err) {
+                        res.send(JSON.stringify({ error: err, response: null }));
+                      }
+                      else {
+                        resp.disclaimer = "This vote need to be double checked";
+                        res.send(JSON.stringify({ response: resp, error: null }));
+                      }
+                    });
 
-                        }
-                      });
-
-                    }
                   }
                 }
               });
@@ -554,7 +525,7 @@ PROMISES: 'yes' or 'no', if they are authorized to vote, error if they have not 
     if (readRes) {
       res.send(JSON.stringify({ response: JSON.parse(readRes).Authorized, error: null }));
     } else {
-      if (err.message.includes("Failed to get data for")) {
+      if (err.message.includes("No data exists for")) {
         err.message = voter + " has not yet requested to vote, they have no auth status";
       }
       res.send(JSON.stringify({ response: null, error: err }));
@@ -569,8 +540,8 @@ PROMISES: get overall results of election, plus number of districts and the name
   var userNameAction = req.body.username;
   read(userNameAction, "metadata", function (err, readRes) {
     if (err) {
-      if (err.message.includes("Failed to get data for")) {
-        err.message ="election has not yet been initializied properly";
+      if (err.message.includes("No data exists for")) {
+        err.message = "election has not yet been initializied properly";
       }
       res.send(JSON.stringify({ error: err, response: null }));
     } else {
@@ -602,10 +573,10 @@ function init(callback) { //INITIALIZATION
     callback(err, null)
   }
 
-  if (config.deployRequest.args.length < 3) {
+  if (config.deployRequest.args.length < 6) {
     err = new Error();
     err.code = 500;
-    err.message = "Incorrect number of arguments for init. Expecting at least one district name, the number of districts, and the ref name. Check config file";
+    err.message = "Incorrect number of arguments for init. Expecting at least: one district name, the number of districts, the number of vote options, at least 2 vote options, and the ref name. Check config file";
     console.log(err.message);
     callback(err, null);
   } else { //only continue if we have the min amount of args
@@ -644,6 +615,8 @@ function init(callback) { //INITIALIZATION
         chaincodeIDKnown = true;
         chaincodeID = resp.electionData.chaincodeID;
         districts = resp.electionData.districts;
+        voteOptions=resp.electionData.voteOptions;
+
       }
       else if (err.error === "not_found") {
         console.log("the election meta-data for " + config.chainName + " was not found on the DB");
@@ -660,6 +633,7 @@ function init(callback) { //INITIALIZATION
         err = new Error();
         err.code = 202;
         err.message = "deployment: chaincode already deployed. Ready to invoke and query"
+        delete err.stack;
         callback(err, null);
 
       } else {
@@ -776,11 +750,16 @@ function enrollAndRegisterUsers(callback) { //enrolls admin
 function deployChaincode(callback) {
   var args = getArgs(config.deployRequest);
 
-  for (var i = 2; i < args.length; i++) { //start at 2 because it is the first of the district names, as per the data model
-    districts.push(args[i]);
+  var numDistricts = parseInt(args[1]);
+  var numVoteOptions = parseInt(args[2 + numDistricts]);
+
+  for (var i = 0; i < numVoteOptions; i++) {
+    voteOptions.push(args[i + 3 + numDistricts]);
   }
 
-
+  for (var i = 0; i < numDistricts; i++) { //start at 2 because it is the first of the district names, as per the data model
+    districts.push(args[i + 2]);
+  }
 
   // Construct the deploy request
   var deployRequest = {
@@ -802,33 +781,27 @@ function deployChaincode(callback) {
     chaincodeID = results.chaincodeID;
     console.log("\nChaincode ID : " + chaincodeID);
     console.log(util.format("\nSuccessfully deployed chaincode: request=%j, response=%j", deployRequest, results));
+    console.log("election districts: " + districts);
+    var electionData =
+      {
+        chaincodeID: chaincodeID,
+        districts: districts,
+        voteOptions: voteOptions
+      };
     // Save the chaincodeID
+    createDocument(config.chainName, electionData, function (err, resp) { //write (chainName: chaincodeID) to db
+      if (err) {
+        err.code = 503;
+        err.message = "error writing chaincodeid to databse after deployement";
+        console.log(err.message);
+        callback(err, null);
+      }
+      else {
+        console.log("wrote election data to db after deployement");
+        callback(null, results);
+      }
+    });
 
-    if (runningLocal) {
-      fs.writeFileSync(chaincodeIDPath, chaincodeID); //THIS WRITE ONLY WORKS WHEN RUNNING LOCALLY!
-      callback(null, results);
-    }
-    else { //running on bluemix
-      console.log("election districts: " + districts);
-      var electionData =
-        {
-          chaincodeID: chaincodeID,
-          districts: districts
-        };
-
-      createDocument(config.chainName, electionData, function (err, resp) { //write (chainName: chaincodeID) to db
-        if (err) {
-          err.code = 503;
-          err.message = "error writing chaincodeid to databse after deployement";
-          console.log(err.message);
-          callback(err, null);
-        }
-        else {
-          console.log("wrote election data to db after deployement");
-          callback(null, results);
-        }
-      });
-    }
   });
 
   deployTx.on('error', function (err) {
@@ -940,20 +913,17 @@ function read(userNameAction, key, callback) {
     }
     else {
       // Read chaincodeID and use this for sub sequent Invokes/Queries
-      if (runningLocal) {
-        chaincodeID = fs.readFileSync(chaincodeIDPath, 'utf8');
-      } else {
-        readDocument(config.chainName, function (err, resp) { //not_found is the err.error if not found
-          if (err) {
-            err.message = "error while reading document with key: " + key;
-            callback(err, null);
-          }
-          else {
-            chaincodeID = resp.electionData.chaincodeID;
-            districts = resp.electionData.districts;
-          }
-        });
-      }
+      readDocument(config.chainName, function (err, resp) { //not_found is the err.error if not found
+        if (err) {
+          err.message = "error while reading document with key: " + key;
+          callback(err, null);
+        }
+        else {
+          chaincodeID = resp.electionData.chaincodeID;
+          districts = resp.electionData.districts;
+          voteOptions=resp.electionData.voteOptions;
+        }
+      });
 
       chain.getUser(userNameAction, function (err, user) {
         if (err) {

@@ -15,15 +15,19 @@ import (
 type referendumMetaData struct {
 	ReferendumName    string
 	NumberOfDistricts int
-	TotalNoVotes      int
-	TotalYesVotes     int
+	//TotalNoVotes      int
+	//TotalYesVotes     int
+	TotalVotes  map[string]int
+	VoteOptions []string
+	Districts   []string
 }
 
 type districtReferendum struct {
 	DistrictName string
-	NoVotes      int
-	YesVotes     int
-	Votes        map[string]string //maps vote ID to vote
+	//NoVotes      int
+	//YesVotes     int
+	TotalVotes map[string]int
+	Votes      map[string]string //maps vote ID to vote
 }
 
 type voterState struct {
@@ -50,30 +54,39 @@ func main() { //main function executes when each peer deploys its instance of th
 func (t *SimpleChaincode) Init(stub shim.ChaincodeStubInterface, function string, args []string) ([]byte, error) {
 	//args: 0: name of referendum, 1: number of districts in referendum, 2+: names of districts
 
-	if len(args) < 3 {
-		return nil, errors.New("Incorrect number of arguments. Expecting at least one district name, the number of districts, and the ref name") //IN NODE TOO!
+	if len(args) < 6 {
+		return nil, errors.New("Incorrect number of arguments for init. Expecting at least: one district name, the number of districts, the number of vote options, at least 2 vote options, and the ref name. Check config file") //IN NODE TOO!
 	}
 
-	//create meta data
+	//extract indexing help
 	numDistricts, err := strconv.Atoi(args[1])
 	if err != nil {
 		return nil, err
 	}
-	metaData := &referendumMetaData{ReferendumName: args[0], NumberOfDistricts: numDistricts, TotalNoVotes: 0, TotalYesVotes: 0}
-	metaDataJSON, err := json.Marshal(metaData) //golang JSON (byte array)
+	numOptions, err := strconv.Atoi(args[2+numDistricts])
 	if err != nil {
-		return nil, errors.New("Marshalling for metadata struct has failed")
+		return nil, err
 	}
-	err = stub.PutState("metadata", metaDataJSON) //writes the key-value pair ("metadata", json object)
-	if err != nil {
-		return nil, errors.New("put state of meta data has failed")
+
+	//create vote options object, used in both district and metadata
+	i := 0
+	var options = make([]string, numOptions) //slice (array) containing option names
+	var voteOptions = make(map[string]int)   //(key, value) pairs of options to number of votes that each option has gotten
+	for i < numOptions {
+		options[i] = args[i+3+numDistricts]
+		voteOptions[options[i]] = 0 //initialize each option has having 0 votes
+		i++
 	}
 
 	//create data model for districts
-	i := 0
+	i = 0
+	var districts = make([]string, numDistricts)
+	//voteOptions[]
 	for i < numDistricts {
-		districtData := &districtReferendum{DistrictName: args[i+2], NoVotes: 0, YesVotes: 0, Votes: make(map[string]string)} //golang struct
-		districtDataJSON, err := json.Marshal(districtData)                                                                   //golang JSON (byte array)
+		districts[i] = args[i+2]
+
+		districtData := &districtReferendum{DistrictName: districts[i], Votes: make(map[string]string), TotalVotes: voteOptions} //golang struct
+		districtDataJSON, err := json.Marshal(districtData)
 		if err != nil {
 			return nil, errors.New("Marshalling for district struct has failed")
 		}
@@ -83,6 +96,17 @@ func (t *SimpleChaincode) Init(stub shim.ChaincodeStubInterface, function string
 			return nil, errors.New("put state of district data has failed")
 		}
 		i++
+	}
+
+	//create metadata model
+	metaData := &referendumMetaData{ReferendumName: args[0], NumberOfDistricts: numDistricts, VoteOptions: options, Districts: districts, TotalVotes: voteOptions}
+	metaDataJSON, err := json.Marshal(metaData) //golang JSON (byte array)
+	if err != nil {
+		return nil, errors.New("Marshalling for metadata struct has failed")
+	}
+	err = stub.PutState("metadata", metaDataJSON) //writes the key-value pair ("metadata", json object)
+	if err != nil {
+		return nil, errors.New("put state of meta data has failed")
 	}
 
 	return nil, nil
@@ -251,16 +275,13 @@ func (t *SimpleChaincode) write(stub shim.ChaincodeStubInterface, args []string)
 		return nil, errors.New(name + "is not allowed to vote")
 	}
 
-	//if person has not already voted, update district data
-	votingDistrictToUpdate.Votes[name] = value
-	if strings.TrimRight(value, "\n") == "yes" {
-		votingDistrictToUpdate.YesVotes++
-
-	} else if strings.TrimRight(value, "\n") == "no" { //IN NODE!
-		votingDistrictToUpdate.NoVotes++
+	if validVote(strings.TrimRight(value, "\n"), metaDataStructToUpdate.VoteOptions) { //checks if the vote value is inside the allowable votes
+		votingDistrictToUpdate.TotalVotes[strings.TrimRight(value, "\n")]++ //adds a vote
 	} else {
 		return nil, errors.New("vote needs to be a yes or no")
 	}
+
+	votingDistrictToUpdate.Votes[name] = value
 
 	NewDistrictDataJSON, err := json.Marshal(votingDistrictToUpdate) //golang JSON (byte array)
 	if err != nil {                                                  //marshall error
@@ -272,12 +293,7 @@ func (t *SimpleChaincode) write(stub shim.ChaincodeStubInterface, args []string)
 	}
 
 	//update metadata too
-	if strings.TrimRight(value, "\n") == "yes" {
-		metaDataStructToUpdate.TotalYesVotes++
-
-	} else if strings.TrimRight(value, "\n") == "no" {
-		metaDataStructToUpdate.TotalNoVotes++
-	}
+	metaDataStructToUpdate.TotalVotes[strings.TrimRight(value, "\n")]++ //adds a vote
 
 	electionMetaDataJSON, err := json.Marshal(metaDataStructToUpdate) //golang JSON (byte array)
 	if err != nil {                                                   //marshall error
@@ -341,4 +357,13 @@ func (t *SimpleChaincode) read(stub shim.ChaincodeStubInterface, args []string) 
 		return nil, errors.New(jsonResp)
 	}
 	return valAsbytes, nil
+}
+
+func validVote(a string, list []string) bool {
+	for _, b := range list {
+		if b == a {
+			return true
+		}
+	}
+	return false
 }

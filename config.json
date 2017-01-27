@@ -1,20 +1,24 @@
 {
-   "chainName":"Scottish Independence",
-   "deployWaitTime":"30",
-   "user": {
-	    "username": "tommy",
-        "affiliation" : "group1"
-   },
-   "deployRequest":{
-      "chaincodePath":"chaincode",
-      "functionName":"init",
-      "args":[
-          "Scottish Independence",
-         "4",
-         "edinburgh",
-         "glasgow",
-         "aberdeen",
-         "dundee"
-      ]
-   }
+    "chainName": "Scottish Independence",
+    "deployWaitTime": "60",
+    "user": {
+        "username": "tommy",
+        "affiliation": "group1"
+    },
+    "deployRequest": {
+        "chaincodePath": "chaincode",
+        "functionName": "init",
+        "args": [
+            "Scottish Independence",
+            "4",
+            "edinburgh",
+            "glasgow",
+            "aberdeen",
+            "dundee",
+            "3",
+            "yes",
+            "no",
+            "maybe"
+        ]
+    }
 }
