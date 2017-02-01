@@ -4,6 +4,7 @@ var util = require('util');
 var fs = require('fs');
 var Cloudant = require('cloudant');
 const https = require('https');
+var jwt = require('express-jwt');
 var express = require('express');
 // cfenv provides access to your Cloud Foundry environment
 var cfenv = require('cfenv');
@@ -22,6 +23,17 @@ var cloudantUsername = '254ec36f-02c6-43e4-99ea-b840f2404041-bluemix';
 var cloudantPassword = "8eae1d3dd1c3c4cc1b6e002c79e3ae18eaab2f328be5cad6ec9f0c2ab6421002"; //if we ever store anything remotely sensitive, we can't have this p/w here
 var cloudant = Cloudant({ account: cloudantUsername, password: cloudantPassword });
 var blockvoteDB;
+
+var authenticate = jwt({
+  secret: 'p6kzbzheMmEfTncjIk7B7awq8HXOVgh7ZNgOdmhJZsCCzDNZmayir4HF35MnbUS1',
+  audience: 'Xg7JFB31LSA74IzWnv93UdqOAnc0juu8'
+});
+
+var ping = require('./routes/ping')
+var secured = require('./routes/secured')
+
+app.use('/ping', ping);
+app.use('/secured', authenticate);
 
 // start server on the specified port and binding host
 app.listen(appEnv.port, '0.0.0.0', function () {
