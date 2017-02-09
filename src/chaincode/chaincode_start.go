@@ -34,12 +34,12 @@ type districtReferendum struct {
 	Votes        map[string]string //maps vote ID to vote
 }
 
-type voterState struct { //key: government ID
-	RegisteredBy string    //this will be a cryptographic feild
-	DateOfBirth  time.Time //get rid of it, too personal
+type registrationRecord struct { //key: government ID
+	RegisteredBy          string
+	RegistrationTimestamp string
 }
 
-type voteRec struct { //key: signed token
+type voteRecord struct { //key: signed token
 	Vote     string
 	District string
 }
@@ -223,23 +223,17 @@ func (t *SimpleChaincode) addRegistrar(stub shim.ChaincodeStubInterface, args []
 	return nil, nil
 }
 
-func (t *SimpleChaincode) register(stub shim.ChaincodeStubInterface, args []string) ([]byte, error) { //BY USE ONLY BY ADMIN/REGISTRAR!!
+func (t *SimpleChaincode) register(stub shim.ChaincodeStubInterface, args []string) ([]byte, error) { //BY USE ONLY BY REGISTRAR!!
 	var govID string
 	var registrar string //who is registering this user
-	var yearOfBirth int
-	var monthOfBirth int
-	var dayOfBirth int
 
-	if len(args) != 5 { //IN NODE!
-		return nil, errors.New("Incorrect number of arguments. Expecting 5")
+	if len(args) != 2 { //IN NODE!
+		return nil, errors.New("Incorrect number of arguments. Expecting 2, govID, and registrar name")
 	}
 	govID = args[0]
 	registrar = args[1]
-	yearOfBirth, _ = strconv.Atoi(args[2])
-	monthOfBirth, _ = strconv.Atoi(args[3])
-	dayOfBirth, _ = strconv.Atoi(args[4])
 
-	dob := time.Date(yearOfBirth, time.Month(monthOfBirth), dayOfBirth, 23, 0, 0, 0, time.UTC)
+	registrationTime := time.Now().Format(time.RFC850)
 
 	//check if this user already has a record
 	preExistRecord, err := stub.GetState(govID) //gets value for the given key //IN NODE!
@@ -250,8 +244,29 @@ func (t *SimpleChaincode) register(stub shim.ChaincodeStubInterface, args []stri
 		return nil, errors.New("person with the given ID=" + govID + " already exists on the system")
 	}
 
+	//check if this is a valid registrar
+	registrarDB := make(map[string]registrarInfo)
+	//get registrarInfo
+	registrarInfoRaw, err := stub.GetState("registarInfo") //gets value for the given key
+	if err != nil {                                        //error with retrieval
+		return nil, err
+	}
+	if registrarInfoRaw != nil {
+		//not the first registrar
+		err = json.Unmarshal(registrarInfoRaw, &registrarDB)
+		if err != nil { //unmarshalling error
+			return nil, err
+		}
+	} else {
+		return nil, errors.New("no registrars are registered in the system yet")
+	}
+
+	if registrarDB[registrar].KeyModulus == "" { //this registrar doesn't exist
+		return nil, errors.New("registrar " + registrar + " doesn't exist")
+	}
+
 	//user record to be recorded
-	voterRecord := &voterState{RegisteredBy: registrar, DateOfBirth: dob}
+	voterRecord := &registrationRecord{RegisteredBy: registrar, RegistrationTimestamp: registrationTime}
 	voterRecordJSON, err := json.Marshal(voterRecord) //golang JSON (byte array)
 	if err != nil {
 		return nil, errors.New("Marshalling for voterRecord struct has failed")
@@ -292,7 +307,7 @@ func (t *SimpleChaincode) requestToVote(stub shim.ChaincodeStubInterface, args [
 		return nil, errors.New(name + "has alredy been registered")
 	}
 	//user record to be recorded
-	voterRecord := &voterState{Authorized: "no", HasVoted: "no", RegisteredBy: registrar, DateOfBirth: dob}
+	voterRecord := &registrationRecord{Authorized: "no", HasVoted: "no", RegisteredBy: registrar, DateOfBirth: dob}
 	voterRecordJSON, err := json.Marshal(voterRecord) //golang JSON (byte array)
 	if err != nil {
 		return nil, errors.New("Marshalling for voterRecord struct has failed")
@@ -377,7 +392,7 @@ func (t *SimpleChaincode) writeVote(stub shim.ChaincodeStubInterface, args []str
 
 	/*		REPLACE WIH CRYPTO SOLUTION 	//check if user is registered, and get reg data
 
-			var userData voterState
+			var userData registrationRecord
 			userDataRaw, err := stub.GetState(govID)
 			if err != nil { //error
 				return nil, err
@@ -433,7 +448,7 @@ func (t *SimpleChaincode) writeVote(stub shim.ChaincodeStubInterface, args []str
 	}
 
 	//write signed token of voter at global level to easily detect if someone has already voted in ANY district
-	globalVote := &voteRec{Vote: value, District: registrarDB[registrarName].RegistrationDistrict}
+	globalVote := &voteRecord{Vote: value, District: registrarDB[registrarName].RegistrationDistrict}
 
 	globalVoteJSON, err := json.Marshal(globalVote) //golang JSON (byte array)
 	if err != nil {                                 //marshall error
