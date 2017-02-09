@@ -125,6 +125,142 @@ app.get('/init', function (req, res) { //NEEDS TO BE CALLED EVERYTIME THE SERVER
   });
 });
 
+
+app.post('/addRegistrar', function (req, res) {
+  //REQUIRES: the name of a registrar, the registrar's key modulus, the registrar's key exponent, and their district
+  //PROMISES: if this registrar is a new registrar, and the key parts are encoded properly, and the district is valid, then this registrar will be added to the blockchain
+  res.setHeader('Content-Type', 'application/json');
+  var registrarName = req.body.registrarName  //empty check+preExistance check
+  var registrarKeyModulus = req.body.registrarKeyModulus //empty check+encoding check
+  var registrarKeyExponent = req.body.registrarKeyExponent//empty check+encoding check
+  var registrarDistrict = req.body.registrarDistrict//empty check+existance check
+
+  if (!registrarName || !registrarKeyModulus || !registrarKeyExponent || !registrarDistrict) {
+    err = new Error();
+    err.code = 400;
+    err.message = "you need to supply: a registrar name, their key modululus and exponent, and the name of their district ";
+    console.log(err.message);
+    res.send(JSON.stringify({ error: err, response: null }));
+  } else {
+    // Read chaincodeID and use this for sub sequent Invokes/Queries
+    readDocument(config.chainName, function (err, resp) { //not_found is the err.error if not found
+      if (err) {
+        err.code = 503;
+        err.message = "error reading election info from database";
+        res.send(JSON.stringify({ error: err, response: null }));
+      }
+      else {
+        chaincodeID = resp.electionData.chaincodeID;
+        districts = resp.electionData.districts;
+        voteOptions = resp.electionData.voteOptions;
+      }
+    });
+    var isKeyModValid = true;
+    var iskeyExpValid = true;
+    if (!isKeyModValid) { //ADD CRYPTO CHECK
+      err = new Error();
+      err.code = 400;
+      err.message = registrarKeyModulus + " is not encoded properly";
+      console.log(err.message);
+      res.send(JSON.stringify({ error: err, response: null }));
+    } else {
+      if (!iskeyExpValid) { //ADD CRYPTO CHECK
+        err = new Error();
+        err.code = 400;
+        err.message = registrarKeyModulus + " is not encoded properly";
+        console.log(err.message);
+        res.send(JSON.stringify({ error: err, response: null }));
+      } else {
+
+        chain.getUser("admin", function (err, user) {
+          if (err) {
+            err2 = new Error();
+            err2.code = 500;
+            err2.message = " Failed to register and enroll " + deployerName + ": " + err;
+            res.send(JSON.stringify({ error: err2, response: null }));
+          }
+          userObj = user;
+
+          //check if desired district exists!
+          read("admin", registrarDistrict, function (err, readResp) {
+            if (!readResp) {
+
+              if (err.message.includes("No data exists for")) {
+                err.message = registrarDistrict + " does not exist";
+              }
+
+              console.log(err.message);
+              delete err.stack;
+              res.send(JSON.stringify({ error: err, response: null }));
+            }
+            else {
+              //check that this registrar hasn't already been registered
+              read("admin", "registarInfo", function (err, readResp) {
+                if (readResp && JSON.parse(readResp).hasOwnProperty(registrarName)) {
+                  err2 = new Error();
+                  err2.code = 500;
+                  err2.message = " The registrar " + registrarName + " is already registered ";
+                  delete err2.stack;
+                  res.send(JSON.stringify({ error: err2, response: null }));
+                } else {
+
+                  //can now invoke, query, etc
+                  var args2 = [];
+                  args2.push(registrarName);
+                  args2.push(registrarKeyModulus);
+                  args2.push(registrarKeyExponent);
+                  args2.push(registrarDistrict);
+
+                  invoke(args2, "writeRegistar", function (err, resp) {
+                    if (err) {
+                      res.send(JSON.stringify({ error: err, response: null }));
+                    }
+                    else {
+                      resp.disclaimer = "This registration needs to be double checked";
+                      res.send(JSON.stringify({ response: resp, error: null }));
+                    }
+                  });
+                }
+
+
+              });
+
+            }
+
+          });
+
+
+
+
+
+
+
+
+
+        });
+
+
+
+
+      }
+
+
+    }
+
+
+
+
+  }
+
+
+
+
+});
+
+
+
+
+
 app.post('/authorizeUser', function (req, res) {
   /*
 REQUIRES:
@@ -172,7 +308,7 @@ If an authorization is successful, you will get the user's record back.
           else {
             chaincodeID = resp.electionData.chaincodeID;
             districts = resp.electionData.districts;
-            voteOptions=resp.electionData.voteOptions;
+            voteOptions = resp.electionData.voteOptions;
           }
         });
 
@@ -274,7 +410,7 @@ PROMISES: status of the voter: have they been authorized and have they voted, er
   });
 });
 
-
+//deprecated
 //************************************************************************************************************OTHER ROUTES
 app.post('/requestToVote', function (req, res) {
   /*
@@ -314,7 +450,7 @@ If a new registration is successful, you will get the user's record back
         else {
           chaincodeID = resp.electionData.chaincodeID;
           districts = resp.electionData.districts;
-          voteOptions=resp.electionData.voteOptions;
+          voteOptions = resp.electionData.voteOptions;
         }
       });
 
@@ -615,7 +751,7 @@ function init(callback) { //INITIALIZATION
         chaincodeIDKnown = true;
         chaincodeID = resp.electionData.chaincodeID;
         districts = resp.electionData.districts;
-        voteOptions=resp.electionData.voteOptions;
+        voteOptions = resp.electionData.voteOptions;
 
       }
       else if (err.error === "not_found") {
@@ -921,7 +1057,7 @@ function read(userNameAction, key, callback) {
         else {
           chaincodeID = resp.electionData.chaincodeID;
           districts = resp.electionData.districts;
-          voteOptions=resp.electionData.voteOptions;
+          voteOptions = resp.electionData.voteOptions;
         }
       });
 
