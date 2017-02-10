@@ -320,7 +320,7 @@ func (t *SimpleChaincode) requestToVote(stub shim.ChaincodeStubInterface, args [
 }
 */
 func (t *SimpleChaincode) writeVote(stub shim.ChaincodeStubInterface, args []string) ([]byte, error) {
-	//args: 0: signed token id of person voting, 1:signed token signature, 2: value of vote
+	//args: 0: signed token id of person voting, 1:signed token signature, 2: value of vote 3:registrar name
 	var signedTokenID string
 	var signedTokenSig string
 	var value string
@@ -369,7 +369,7 @@ func (t *SimpleChaincode) writeVote(stub shim.ChaincodeStubInterface, args []str
 	}
 
 	//check if given district exists
-	votingDistrictRaw, err := stub.GetState(registrarDB[registrarName].RegistrationDistrict) //IN NODE!
+	votingDistrictRaw, err := stub.GetState(registrarDB[registrarName].RegistrationDistrict)
 	if err != nil {
 		return nil, err
 	}
@@ -390,7 +390,7 @@ func (t *SimpleChaincode) writeVote(stub shim.ChaincodeStubInterface, args []str
 		return nil, errors.New("user with signedToken " + signedTokenID + signedTokenSig + " has already voted")
 	}
 
-	/*		REPLACE WIH CRYPTO SOLUTION 	//check if user is registered, and get reg data
+	/*		REPLACED WIH CRYPTO SOLUTION 	//check if user is registered, and get reg data
 
 			var userData registrationRecord
 			userDataRaw, err := stub.GetState(govID)

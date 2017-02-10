@@ -428,102 +428,94 @@ app.get('/results', function (req, res) {
 app.post('/writeVote', function (req, res) {
 
   res.setHeader('Content-Type', 'application/json');
-  var userNameAction = req.body.username;
-  var voter = req.body.voter;
-  var district = req.body.district;
-  var vote = req.body.vote;
+  var signedTokenID = req.body.signedTokenID
+  var signedTokenSig = req.body.signedTokenSig
+  var vote = req.body.vote
+  var registrarName = req.body.registrarName
 
-  if (!userNameAction) {
+  if (!signedTokenID || !signedTokenSig || !vote || !registrarName) {
     err = new Error();
     err.code = 400;
-    err.message = "you need to supply a username for the actor doing the action";
+    err.message = "you need to supply: a voter's signedTokenID and signedTokenSig , a vote, and the name of the registrar who authorized the user";
     console.log(err.message);
     res.send(JSON.stringify({ error: err, response: null }));
   }
   else {
-    if (!voter || !district || !vote) {
+    // Read chaincodeID and use this for sub sequent Invokes/Queries
+    readDocument(config.chainName, function (err, resp) { //not_found is the err.error if not found
+      if (err) {
+        err.code = 503;
+        err.message = "error reading election info from database";
+        res.send(JSON.stringify({ error: err, response: null }));
+      }
+      else {
+        chaincodeID = resp.electionData.chaincodeID;
+        districts = resp.electionData.districts;
+        voteOptions = resp.electionData.voteOptions;
+      }
+    });
+
+    if (voteOptions.indexOf(vote) === -1) {
       err = new Error();
       err.code = 400;
-      err.message = "you need to supply: a voter, a vote, and the name of the district where the vote occurs";
+      err.message = vote + " is an invalid vote";
       console.log(err.message);
       res.send(JSON.stringify({ error: err, response: null }));
     }
     else {
-      // Read chaincodeID and use this for sub sequent Invokes/Queries
-      readDocument(config.chainName, function (err, resp) { //not_found is the err.error if not found
+      chain.getUser("admin", function (err, user) {
         if (err) {
-          err.code = 503;
-          err.message = "error reading election info from database";
-          res.send(JSON.stringify({ error: err, response: null }));
+          err2 = new Error();
+          err2.code = 500;
+          err2.message = " Failed to register and enroll admin"
+          res.send(JSON.stringify({ error: err2, response: null }));
         }
-        else {
-          chaincodeID = resp.electionData.chaincodeID;
-          districts = resp.electionData.districts;
-          voteOptions = resp.electionData.voteOptions;
-        }
-      });
+        userObj = user;
 
-      if (voteOptions.indexOf(vote) === -1) {
-        err = new Error();
-        err.code = 400;
-        err.message = vote + " is an invalid vote";
-        console.log(err.message);
-        res.send(JSON.stringify({ error: err, response: null }));
-      }
-      else {
-        chain.getUser(userNameAction, function (err, user) {
-          if (err) {
+        //check if this registar is registered          
+        read("admin", "registarInfo", function (err, readResp) {
+          if (!readResp) {
             err2 = new Error();
             err2.code = 500;
-            err2.message = " Failed to register and enroll " + deployerName + ": " + err;
+            err2.message = "There are no registrars registered";
+            delete err2.stack;
+            res.send(JSON.stringify({ error: err2, response: null }));
+          } else if (!JSON.parse(readResp).hasOwnProperty(registrarName)) {
+            err2 = new Error();
+            err2.code = 500;
+            err2.message = " The registrar " + registrarName + " is not registered ";
+            delete err2.stack;
             res.send(JSON.stringify({ error: err2, response: null }));
           }
-          userObj = user;
-
-
-          //check if desired district exists!
-          read(userNameAction, district, function (err, readResp) {
-            if (!readResp) {
-
-              if (err.message.includes("No data exists for")) {
-                err.message = district + " does not exist";
+          else {
+            //check if this person has already voted
+            read("admin", signedTokenID + signedTokenSig, function (err, readResp) {
+              if (readResp) { //record found
+                err2 = new Error();
+                err2.code = 500;
+                err2.message = "user with signedToken" + signedTokenID + signedTokenSig + " has already voted"
+                delete err2.stack;
+                res.send(JSON.stringify({ error: err2, response: null }));
               }
-
-              console.log(err.message);
-              res.send(JSON.stringify({ error: err, response: null }));
-            }
-            else {
-              read(userNameAction, voter, function (err, readResp) {
-                if (!readResp) { //no record
-                  if (err.message.includes("No data exists for")) {
-                    err.message = voter + " has not requested to vote yet. Please request to vote before voting";
-                    console.log(err.message);
-                    res.send(JSON.stringify({ error: err, response: null }));
-                  }
-                }
-                else {
-                  if (JSON.parse(readResp).Authorized === "no") {
+              else { // no record found
+                if (!err.message.includes("No data exists for")) { //read error apart from no document found
+                  res.send(JSON.stringify({ error: err, response: null }));
+                } else {
+                  var CRYPTOVERIFIED = true
+                  if (!CRYPTOVERIFIED) {    //need actual crypto solution in nodeJS
                     err2 = new Error();
-                    err2.code = 400;
-                    err2.message = voter + " is not authorized to vote";
-                    console.log(err2.message);
+                    err2.code = 500;
+                    err2.message = "user with signedToken" + signedTokenID + signedTokenSig + " is not authorized to vote by " + registrarName
+                    delete err2.stack;
                     res.send(JSON.stringify({ error: err2, response: null }));
-                  }
-                  else if (JSON.parse(readResp).HasVoted === "yes") {
-                    err2 = new Error();
-                    err2.code = 400;
-                    err2.message = voter + " already voted. You can only vote once";
-                    console.log(err2.message);
-                    res.send(JSON.stringify({ error: err2, response: null }));
-                  }
-                  else {
+                  } else {
                     //can now invoke, query, etc
                     var args2 = [];
-                    args2.push(voter);
-                    args2.push(district);
+                    args2.push(signedTokenID);
+                    args2.push(signedTokenSig);
                     args2.push(vote);
-
-                    invoke(args2, "write", function (err, resp) {
+                    args2.push(registrarName);
+                    invoke(args2, "writeVote", function (err, resp) {
                       if (err) {
                         res.send(JSON.stringify({ error: err, response: null }));
                       }
@@ -534,14 +526,19 @@ app.post('/writeVote', function (req, res) {
                     });
 
                   }
+
+
                 }
-              });
-            }
-          });
+
+
+              }
+            });
+          }
         });
-      }
+      });
     }
   }
+
 });
 
 
