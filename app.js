@@ -424,7 +424,23 @@ app.get('/results', function (req, res) {
   });
 });
 
-//todo
+app.get('/getRegistrarInfo', function (req, res) {
+  //REQUIRES: for an election to have been deployed from the config file
+  //PROMISES: get information about the registrars in the system
+  res.setHeader('Content-Type', 'application/json');
+  read("admin", "registarInfo", function (err, readRes) {
+    if (err) {
+      if (err.message.includes("No data exists for")) {
+        err.message = "no registrars have been added yet";
+      }
+      res.send(JSON.stringify({ error: err, response: null }));
+    } else {
+      res.send(JSON.stringify({ response: readRes, error: null }));
+    }
+  });
+});
+
+
 app.post('/writeVote', function (req, res) {
 
   res.setHeader('Content-Type', 'application/json');
