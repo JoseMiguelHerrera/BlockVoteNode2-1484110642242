@@ -447,7 +447,22 @@ app.get('/getRegistrarInfo', function (req, res) {
       }
       res.send(JSON.stringify({ error: err, response: null }));
     } else {
-      res.send(JSON.stringify({ response: readRes, error: null }));
+      var readResJSON=JSON.parse(readRes);
+      var registrars = [];
+
+      for(var i in readResJSON){
+        var reg = readResJSON[i];
+        var registrar =  {"Registrar": {
+              "RegistrarName": i,
+              "KeyModulus": reg.KeyModulus,
+              "KeyExponent": reg.KeyExponent,
+              "RegistrationDistrict": reg.RegistrationDistrict},
+              };
+        registrars.push(registrar);
+      }
+
+      var registrarsJSON = JSON.stringify(registrars);
+      res.send(JSON.stringify({ response: registrarsJSON, error: null }));
     }
   });
 });
