@@ -400,6 +400,26 @@ app.post('/readDistrict', function (req, res) {
   });
 });
 
+app.post('/readVote', function (req, res) {
+  /*REQUIRES: a signedToken ID and and signedToken Signature for a voter that has already voted
+  PROMISES: if a vote has been registered with the signedToken, the vote will be returned.
+  */
+  res.setHeader('Content-Type', 'application/json');
+  var signedTokenID = req.body.signedTokenID
+  var signedTokenSig = req.body.signedTokenSig
+  read("admin", signedTokenID + signedTokenSig, function (err, readRes) {
+    if (err) {
+      if (err.message.includes("No data exists for")) {
+        err.message = "No vote exists for a voter with signed token: "+signedTokenID + signedTokenSig;
+      }
+      res.send(JSON.stringify({ error: err, response: null }));
+    }
+    else {
+      res.send(JSON.stringify({ response: readRes, error: null }));
+    }
+  });
+});
+
 app.get('/getElectionInfo', function (req, res) {
   //REQUIRES: for an election to have been deployed from the config file
   //PROMISES: name of election, districts inside of it, and the options for voting*/
@@ -447,17 +467,19 @@ app.get('/getRegistrarInfo', function (req, res) {
       }
       res.send(JSON.stringify({ error: err, response: null }));
     } else {
-      var readResJSON=JSON.parse(readRes);
+      var readResJSON = JSON.parse(readRes);
       var registrars = [];
 
-      for(var i in readResJSON){
+      for (var i in readResJSON) {
         var reg = readResJSON[i];
-        var registrar =  {"Registrar": {
-              "RegistrarName": i,
-              "KeyModulus": reg.KeyModulus,
-              "KeyExponent": reg.KeyExponent,
-              "RegistrationDistrict": reg.RegistrationDistrict},
-              };
+        var registrar = {
+          "Registrar": {
+            "RegistrarName": i,
+            "KeyModulus": reg.KeyModulus,
+            "KeyExponent": reg.KeyExponent,
+            "RegistrationDistrict": reg.RegistrationDistrict
+          },
+        };
         registrars.push(registrar);
       }
 
