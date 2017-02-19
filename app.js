@@ -683,7 +683,6 @@ function init(callback) { //INITIALIZATION
         err.message = "deployment: chaincode already deployed. Ready to invoke and query"
         delete err.stack;
         callback(err, null);
-
       } else {
         enrollAndRegisterUsers(callback); //ENROLL THE PRE-REGISTERED ADMIN (FROM membersrvc.YAML) AND SERVICECREDENTIALS, CALL deployChaincode!
       }
