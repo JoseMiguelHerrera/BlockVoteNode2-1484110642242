@@ -26,6 +26,8 @@ type referendumMetaData struct {
 	TotalVotes        map[string]int
 	VoteOptions       []string
 	Districts         []string
+	StartTime         time.Time
+	EndTime           time.Time
 }
 
 type districtReferendum struct {
@@ -69,8 +71,8 @@ func main() { //main function executes when each peer deploys its instance of th
 func (t *SimpleChaincode) Init(stub shim.ChaincodeStubInterface, function string, args []string) ([]byte, error) {
 	//args: 0: name of referendum, 1: number of districts in referendum, 2+: names of districts
 
-	if len(args) < 6 {
-		return nil, errors.New("Incorrect number of arguments for init. Expecting at least: one district name, the number of districts, the number of vote options, at least 2 vote options, and the ref name. Check config file") //IN NODE TOO!
+	if len(args) < 16 {
+		return nil, errors.New("Incorrect number of arguments for init. Expecting at least: one district name, the number of districts, the number of vote options, at least 2 vote options, and the ref name. Also the time components Check config file") //IN NODE TOO!
 	}
 
 	//extract indexing help
@@ -113,8 +115,29 @@ func (t *SimpleChaincode) Init(stub shim.ChaincodeStubInterface, function string
 		i++
 	}
 
+	//get all date info for start date
+	startYear, err := strconv.Atoi(args[3+numDistricts+numOptions+0])
+	startMonth, err := strconv.Atoi(args[3+numDistricts+numOptions+1])
+	startDay, err := strconv.Atoi(args[3+numDistricts+numOptions+2])
+	startHour, err := strconv.Atoi(args[3+numDistricts+numOptions+3])
+	startMin, err := strconv.Atoi(args[3+numDistricts+numOptions+4])
+
+	//get all date info for end date
+	endYear, err := strconv.Atoi(args[3+numDistricts+numOptions+5])
+	endMonth, err := strconv.Atoi(args[3+numDistricts+numOptions+6])
+	endDay, err := strconv.Atoi(args[3+numDistricts+numOptions+7])
+	endHour, err := strconv.Atoi(args[3+numDistricts+numOptions+8])
+	endMin, err := strconv.Atoi(args[3+numDistricts+numOptions+9])
+	if err != nil {
+		return nil, errors.New("Invalid date information")
+	}
+
+	//create 2 time objects
+	startTime := time.Date(startYear, time.Month(startMonth), startDay, startHour, startMin, 0, 0, time.UTC)
+	endTime := time.Date(endYear, time.Month(endMonth), endDay, endHour, endMin, 0, 0, time.UTC)
+
 	//create metadata model
-	metaData := &referendumMetaData{ReferendumName: args[0], NumberOfDistricts: numDistricts, VoteOptions: options, Districts: districts, TotalVotes: voteOptions}
+	metaData := &referendumMetaData{ReferendumName: args[0], NumberOfDistricts: numDistricts, VoteOptions: options, Districts: districts, TotalVotes: voteOptions, StartTime: startTime, EndTime: endTime}
 	metaDataJSON, err := json.Marshal(metaData) //golang JSON (byte array)
 	if err != nil {
 		return nil, errors.New("Marshalling for metadata struct has failed")
@@ -170,6 +193,22 @@ func (t *SimpleChaincode) addRegistrar(stub shim.ChaincodeStubInterface, args []
 	registrarKeyModulus = args[1]
 	registrarKeyExponent = args[2]
 	registrarDistrict = args[3]
+
+	//get metadata aka global results
+	metadataRaw, err := stub.GetState("metadata")
+	if err != nil { //get state error
+		return nil, err
+	}
+	var metaDataStruct referendumMetaData
+	err = json.Unmarshal(metadataRaw, &metaDataStruct)
+	if err != nil { //unmarshalling error
+		return nil, err
+	}
+
+	//check that this election is currently running
+	if !inTimeSpan(metaDataStruct.StartTime, metaDataStruct.EndTime, time.Now().UTC()) {
+		return nil, errors.New("This election has closed")
+	}
 
 	//check if encoding is correct on crypto
 	decE, err := base64.StdEncoding.DecodeString(registrarKeyExponent)
@@ -233,7 +272,23 @@ func (t *SimpleChaincode) register(stub shim.ChaincodeStubInterface, args []stri
 	govID = args[0]
 	registrar = args[1]
 
-	registrationTime := time.Now().Format(time.RFC850)
+	registrationTime := time.Now().UTC().Format(time.RFC850)
+
+	//get metadata aka global results
+	metadataRaw, err := stub.GetState("metadata")
+	if err != nil { //get state error
+		return nil, err
+	}
+	var metaDataStruct referendumMetaData
+	err = json.Unmarshal(metadataRaw, &metaDataStruct)
+	if err != nil { //unmarshalling error
+		return nil, err
+	}
+
+	//check that this election is currently running
+	if !inTimeSpan(metaDataStruct.StartTime, metaDataStruct.EndTime, time.Now().UTC()) {
+		return nil, errors.New("This election has closed")
+	}
 
 	//check if this user already has a record
 	preExistRecord, err := stub.GetState(govID) //gets value for the given key //IN NODE!
@@ -346,6 +401,11 @@ func (t *SimpleChaincode) writeVote(stub shim.ChaincodeStubInterface, args []str
 	err = json.Unmarshal(metadataRaw, &metaDataStructToUpdate)
 	if err != nil { //unmarshalling error
 		return nil, err
+	}
+
+	//check that this election is currently running
+	if !inTimeSpan(metaDataStructToUpdate.StartTime, metaDataStructToUpdate.EndTime, time.Now().UTC()) {
+		return nil, errors.New("This election has closed")
 	}
 
 	//get registrar data
@@ -510,6 +570,10 @@ func validVote(a string, list []string) bool {
 		}
 	}
 	return false
+}
+
+func inTimeSpan(start, end, check time.Time) bool {
+	return check.After(start) && check.Before(end)
 }
 
 func isCryptoVerified(keyModulus string, keyExponent string, tokenID string, tokenSignature string) (bool, error) {
