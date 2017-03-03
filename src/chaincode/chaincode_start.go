@@ -28,6 +28,7 @@ type referendumMetaData struct {
 	Districts         []string
 	StartTime         time.Time
 	EndTime           time.Time
+	AllowLiveResults  string
 }
 
 type districtReferendum struct {
@@ -71,7 +72,7 @@ func main() { //main function executes when each peer deploys its instance of th
 func (t *SimpleChaincode) Init(stub shim.ChaincodeStubInterface, function string, args []string) ([]byte, error) {
 	//args: 0: name of referendum, 1: number of districts in referendum, 2+: names of districts
 
-	if len(args) < 16 {
+	if len(args) < 17 {
 		return nil, errors.New("Incorrect number of arguments for init. Expecting at least: one district name, the number of districts, the number of vote options, at least 2 vote options, and the ref name. Also the time components Check config file") //IN NODE TOO!
 	}
 
@@ -132,12 +133,16 @@ func (t *SimpleChaincode) Init(stub shim.ChaincodeStubInterface, function string
 		return nil, errors.New("Invalid date information")
 	}
 
+	//check allow live resuts val
+	if args[3+numDistricts+numOptions+10] != "yes" && args[3+numDistricts+numOptions+10] != "no" {
+		return nil, errors.New("value for allowing live results needs to be a yes or no")
+	}
 	//create 2 time objects
 	startTime := time.Date(startYear, time.Month(startMonth), startDay, startHour, startMin, 0, 0, time.UTC)
 	endTime := time.Date(endYear, time.Month(endMonth), endDay, endHour, endMin, 0, 0, time.UTC)
 
 	//create metadata model
-	metaData := &referendumMetaData{ReferendumName: args[0], NumberOfDistricts: numDistricts, VoteOptions: options, Districts: districts, TotalVotes: voteOptions, StartTime: startTime, EndTime: endTime}
+	metaData := &referendumMetaData{ReferendumName: args[0], NumberOfDistricts: numDistricts, VoteOptions: options, Districts: districts, TotalVotes: voteOptions, StartTime: startTime, EndTime: endTime, AllowLiveResults: args[3+numDistricts+numOptions+10]}
 	metaDataJSON, err := json.Marshal(metaData) //golang JSON (byte array)
 	if err != nil {
 		return nil, errors.New("Marshalling for metadata struct has failed")
@@ -543,24 +548,72 @@ func (t *SimpleChaincode) Query(stub shim.ChaincodeStubInterface, function strin
 
 func (t *SimpleChaincode) read(stub shim.ChaincodeStubInterface, args []string) ([]byte, error) {
 	//args: 0: data being read
-	var name string
+	var name = args[0]
 	var jsonResp string
+
+	var readReturn []byte
 
 	if len(args) != 1 {
 		return nil, errors.New("Incorrect number of arguments. Expecting name of the var to query")
 	}
+	/*
+		//get metadata aka global results
+		metadataRaw, err := stub.GetState("metadata")
+		if err != nil { //get state error
+			return nil, err
+		}
+		var metaDataStruct referendumMetaData
+		err = json.Unmarshal(metadataRaw, &metaDataStruct)
+		if err != nil { //unmarshalling error
+			return nil, err
+		}
 
-	name = args[0]
-	valAsbytes, err := stub.GetState(name) //gets value for the given key
+		//check that this election is currently running
+			if inTimeSpan(metaDataStruct.StartTime, metaDataStruct.EndTime, time.Now().UTC()) {
+				//election open
+				if stringInArray(name, metaDataStruct.Districts) || name == "metadata" { //requesting results
+					if metaDataStruct.AllowLiveResults == "no" {
+						return nil, errors.New("Live results not allowed for this election")
+					} else {
+						if name == "metadata" { //because we already got it, why get it again
+							readReturn = metadataRaw
+						} else {
+							readReturn, err = stub.GetState(name) //gets value for the given key
+							if err != nil {                       //getstate error
+								return nil, err
+							}
+						}
+					}
+				} else {
+					//requesting something else
+					readReturn, err = stub.GetState(name) //gets value for the given key
+					if err != nil {                       //getstate error
+						return nil, err
+					}
+				}
+
+			} else {
+				//election closed
+				if name == "metadata" { //because we already got it, why get it again
+					readReturn = metadataRaw
+				} else {
+					readReturn, err = stub.GetState(name) //gets value for the given key
+					if err != nil {                       //getstate error
+						return nil, err
+					}
+				}
+			}
+	*/
+	//return
+	readReturn, err := stub.GetState(name) //gets value for the given key
 	if err != nil {                        //getstate error
 		return nil, err
 	}
-
-	if valAsbytes == nil { //vote doesn't exist
+	if readReturn == nil { //data doesn't exist
 		jsonResp = "{\"Error\":\"No data exists for " + name + "\"}"
 		return nil, errors.New(jsonResp)
 	}
-	return valAsbytes, nil
+	return readReturn, nil
 }
 
 func validVote(a string, list []string) bool {
@@ -574,6 +627,15 @@ func validVote(a string, list []string) bool {
 
 func inTimeSpan(start, end, check time.Time) bool {
 	return check.After(start) && check.Before(end)
+}
+
+func stringInArray(a string, list []string) bool {
+	for _, b := range list {
+		if b == a {
+			return true
+		}
+	}
+	return false
 }
 
 func isCryptoVerified(keyModulus string, keyExponent string, tokenID string, tokenSignature string) (bool, error) {

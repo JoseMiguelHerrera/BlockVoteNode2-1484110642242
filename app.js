@@ -91,8 +91,9 @@ var chaincodeIDKnown;
 
 var districts = [];
 var voteOptions = [];
-var startDate = new Date();
-var endDate = new Date();
+var startDate;
+var endDate;
+var allowLiveResults;
 
 var caUrl;
 var peerUrls = [];
@@ -139,7 +140,7 @@ app.get('/init', function (req, res) { //NEEDS TO BE CALLED EVERYTIME THE SERVER
   });
 });
 
-
+//locked by electon that has ended
 app.post('/addRegistrar', function (req, res) {
   //REQUIRES: the name of a registrar, the registrar's key modulus, the registrar's key exponent, and their district
   //PROMISES: if this registrar is a new registrar, and the key parts are encoded properly, and the district is valid, then this registrar will be added to the blockchain
@@ -273,7 +274,7 @@ app.post('/addRegistrar', function (req, res) {
 });
 
 //******************************************************************************************ROUTES-REGISTRAR ONLY
-
+//locked by electon that has ended
 app.post('/registerVoter', function (req, res) {
   //REQUIRES: the government ID of the voter, the name of the registrar who is doing the registration
   //PROMISES: if this voter has not yet been registered, and the registrar is registered, the voter will be have a registration record created for them.
@@ -393,6 +394,7 @@ app.post('/VoterRegRecord', function (req, res) {
   });
 });
 
+//locked when live results are not allowed and election is running
 app.post('/readDistrict', function (req, res) {
   /*REQUIRES:
   POST district: name of district you want to get information about
@@ -400,7 +402,7 @@ app.post('/readDistrict', function (req, res) {
   */
   res.setHeader('Content-Type', 'application/json');
   var district = req.body.district;
-  read("admin", district, function (err, readRes) {
+  function readDistrictCallback(err, readRes) {
     if (err) {
       if (err.message.includes("No data exists for")) {
         err.message = district + " is not a valid district";
@@ -409,6 +411,48 @@ app.post('/readDistrict', function (req, res) {
     }
     else {
       res.send(JSON.stringify({ response: readRes, error: null }));
+    }
+  }
+
+  readDocument(config.chainName, function (err, resp) {
+    if (err) {
+      err.code = 503;
+      err.message = "error reading election info from database";
+      res.send(JSON.stringify({ error: err, response: null }));
+    }
+    else {
+      chaincodeID = resp.electionData.chaincodeID;
+      districts = resp.electionData.districts;
+      voteOptions = resp.electionData.voteOptions;
+      startDate = resp.electionData.electionStart;
+      endDate = resp.electionData.electionEnd;
+      allowLiveResults = resp.electionData.liveResults;
+
+      var currDate = Date.now();
+      if (currDate < endDate) {
+        //election open
+        console.log("allowLiveResults: " + allowLiveResults)
+        if (allowLiveResults === "no") {
+          err = new Error();
+          err.code = 400;
+          err.message = "Live results not allowed for this election, please wait for it to finish";
+          delete err.stack;
+          res.send(JSON.stringify({ error: err, response: null }));
+        } else {
+          read("admin", district, function (err, readRes) {
+            readDistrictCallback(err, readRes);
+          });
+        }
+      } else {
+        //election closed  
+        read("admin", district, function (err, readRes) {
+          readDistrictCallback(err, readRes);
+        });
+      }
+
+
+
+
     }
   });
 });
@@ -447,17 +491,22 @@ app.get('/getElectionInfo', function (req, res) {
     else {
       delete resp.electionData.chaincodeID;
       delete resp._rev;
+      resp.electionData.electionStart= (new Date(resp.electionData.electionStart));
+      resp.electionData.electionEnd= (new Date(resp.electionData.electionEnd));
       console.log(resp);
       res.send(JSON.stringify({ response: resp, error: null }));
     }
   });
 });
 
+//locked when live results are not allowed and election is running
 app.get('/results', function (req, res) {
   //REQUIRES: for an election to have been deployed from the config file
   //PROMISES: get overall results of election, plus number of districts and the name of the eleciton
   res.setHeader('Content-Type', 'application/json');
-  read("admin", "metadata", function (err, readRes) {
+
+
+  function resultReadCallback(err, readRes) {
     if (err) {
       if (err.message.includes("No data exists for")) {
         err.message = "election has not yet been initializied properly";
@@ -466,7 +515,50 @@ app.get('/results', function (req, res) {
     } else {
       res.send(JSON.stringify({ response: readRes, error: null }));
     }
+  }
+
+  readDocument(config.chainName, function (err, resp) {
+    if (err) {
+      err.code = 503;
+      err.message = "error reading election info from database";
+      res.send(JSON.stringify({ error: err, response: null }));
+    }
+    else {
+      chaincodeID = resp.electionData.chaincodeID;
+      districts = resp.electionData.districts;
+      voteOptions = resp.electionData.voteOptions;
+      startDate = resp.electionData.electionStart;
+      endDate = resp.electionData.electionEnd;
+      allowLiveResults = resp.electionData.liveResults;
+
+      var currDate = Date.now();
+      if (currDate < endDate) {
+        //election open
+        console.log("allowLiveResults: " + allowLiveResults)
+        if (allowLiveResults === "no") {
+          err = new Error();
+          err.code = 400;
+          err.message = "Live results not allowed for this election, please wait for it to finish";
+          delete err.stack;
+          res.send(JSON.stringify({ error: err, response: null }));
+        } else {
+          read("admin", district, function (err, readRes) {
+            resultReadCallback(err, readRes);
+          });
+        }
+      } else {
+        //election closed  
+        read("admin", "metadata", function (err, readRes) {
+          resultReadCallback(err, readRes);
+        });
+      }
+
+
+
+
+    }
   });
+
 });
 
 app.get('/getRegistrarInfo', function (req, res) {
@@ -502,7 +594,7 @@ app.get('/getRegistrarInfo', function (req, res) {
   });
 });
 
-
+//locked by electon that has ended
 app.post('/writeVote', function (req, res) {
 
   res.setHeader('Content-Type', 'application/json');
@@ -824,6 +916,7 @@ function deployChaincode(callback) {
 
   var numDistricts = parseInt(args[1]);
   var numVoteOptions = parseInt(args[2 + numDistricts]);
+  var areLiveResultsAllowed = args[3 + numDistricts + numVoteOptions + 10];
 
   for (var i = 0; i < numVoteOptions; i++) {
     voteOptions.push(args[i + 3 + numDistricts]);
@@ -833,9 +926,16 @@ function deployChaincode(callback) {
     districts.push(args[i + 2]);
   }
 
-  startDate = new Date(Date.UTC(parseInt(args[3 + numDistricts + numVoteOptions]), parseInt(args[3 + numDistricts + numVoteOptions + 1]), parseInt(args[3 + numDistricts + numVoteOptions + 2]), parseInt(args[3 + numDistricts + numVoteOptions + 3]), parseInt(args[3 + numDistricts + numVoteOptions + 4])));
-  endDate = new Date(Date.UTC(parseInt(args[3 + numDistricts + numVoteOptions + 5]), parseInt(args[3 + numDistricts + numVoteOptions + 6]), parseInt(args[3 + numDistricts + numVoteOptions + 7]), parseInt(args[3 + numDistricts + numVoteOptions + 8]), parseInt(args[3 + numDistricts + numVoteOptions + 9])));
+  //subtracting one from the month because JS uses 0-based months....wow
+  startDate = Date.UTC(parseInt(args[3 + numDistricts + numVoteOptions]), parseInt(args[3 + numDistricts + numVoteOptions + 1]) - 1, parseInt(args[3 + numDistricts + numVoteOptions + 2]), parseInt(args[3 + numDistricts + numVoteOptions + 3]), parseInt(args[3 + numDistricts + numVoteOptions + 4]));
+  endDate = Date.UTC(parseInt(args[3 + numDistricts + numVoteOptions + 5]), parseInt(args[3 + numDistricts + numVoteOptions + 6]) - 1, parseInt(args[3 + numDistricts + numVoteOptions + 7]), parseInt(args[3 + numDistricts + numVoteOptions + 8]), parseInt(args[3 + numDistricts + numVoteOptions + 9]));
 
+  if (areLiveResultsAllowed !== "yes" && areLiveResultsAllowed !== "no") {
+    err.code = 400;
+    err.message = "value for allowing live results needs to be a yes or no";
+    console.log(err.message);
+    callback(err, null);
+  }
 
   // Construct the deploy request
   var deployRequest = {
@@ -864,7 +964,8 @@ function deployChaincode(callback) {
         districts: districts,
         voteOptions: voteOptions,
         electionStart: startDate,
-        electionEnd: endDate
+        electionEnd: endDate,
+        liveResults: areLiveResultsAllowed
       };
     // Save the election info
     createDocument(config.chainName, electionData, function (err, resp) { //write (chainName: chaincodeID) to db
