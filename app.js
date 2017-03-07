@@ -35,7 +35,7 @@ var webAuth = new auth0.WebAuth({
     clientID:     'f2pQL6jMgGQLDsNlHfhQgsmMVGzMcgmg'
 });
 
-app.use('/ping', authenticate);
+app.use('/authping', authenticate);
 app.use('/init', authenticate);
 app.use('/addRegistrar', authenticate);
 app.use('/registerVoter', authenticate);
@@ -116,7 +116,7 @@ createDataBase(function (err, resp) {
   }
 });
 
-app.get('/ping', function(req, res) {
+app.get('/authping', function(req, res) {
   res.status(200).send("All good. You only get this message if you're authenticated");
 });
 

@@ -12,7 +12,7 @@
     "express": "4.13.x",
     "hfc": "0.6.5",
     "express-jwt":"5.1.0",
-    "auth0-js" : "2.15.9"
+    "auth0-js" : "8.3.0"
   },
   "repository": {},
   "engines": {
