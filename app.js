@@ -6,6 +6,7 @@ var Cloudant = require('cloudant');
 const https = require('https');
 var jwt = require('express-jwt');
 var express = require('express');
+var auth0 = require('auth0-js');
 // cfenv provides access to your Cloud Foundry environment
 var cfenv = require('cfenv');
 // create a new express server
@@ -25,15 +26,19 @@ var cloudant = Cloudant({ account: cloudantUsername, password: cloudantPassword 
 var blockvoteDB;
 
 var authenticate = jwt({
-  secret: 'p6kzbzheMmEfTncjIk7B7awq8HXOVgh7ZNgOdmhJZsCCzDNZmayir4HF35MnbUS1',
-  audience: 'Xg7JFB31LSA74IzWnv93UdqOAnc0juu8'
+  secret: 'T7avxda1pkVo0GLcAnDY3tl3DBv1Z1CSCvrwqocQJHw1RPbWv0g1zha4X4HQ8S2t',
+  audience: 'f2pQL6jMgGQLDsNlHfhQgsmMVGzMcgmg'
 });
 
-var ping = require('./routes/ping')
-var secured = require('./routes/secured')
+var webAuth = new auth0.WebAuth({
+    domain:       'enel500blockvote.auth0.com',
+    clientID:     'f2pQL6jMgGQLDsNlHfhQgsmMVGzMcgmg'
+});
 
-app.use('/ping', ping);
-app.use('/secured', authenticate);
+app.use('/ping', authenticate);
+app.use('/init', authenticate);
+app.use('/addRegistrar', authenticate);
+app.use('/registerVoter', authenticate);
 
 // start server on the specified port and binding host
 app.listen(appEnv.port, '0.0.0.0', function () {
@@ -111,38 +116,54 @@ createDataBase(function (err, resp) {
   }
 });
 
-
+app.get('/ping', function(req, res) {
+  res.status(200).send("All good. You only get this message if you're authenticated");
+});
 
 //******************************************************************************************ROUTES-ADMIN ONLY
 app.get('/init', function (req, res) { //NEEDS TO BE CALLED EVERYTIME THE SERVER IS RESTARTED
 
-  //REQUIRES: a proper config file
+  //REQUIRES: a proper config file, valid Authorization header and access token in header
   //PROMISES: If deployment has already been done, an error mentioning this. If deployment is successful, returns election metadata.
 
-  res.setHeader('Content-Type', 'application/json');
-  init(function (err, resp) {
-    if (err) {
-      res.send(JSON.stringify({ error: err, response: null }));
-    }
-    else {
-      read("admin", "metadata", function (err, readRes) {
-        if (err) {
-          if (err.message.includes("No data exists for")) {
-            err.message = "init failed";
+  var authToken = req.get("AccessToken");
+  
+  console.log(authToken);
+
+  webAuth.client.userInfo(authToken, function(err, user) {
+   if(err){
+     res.send(JSON.stringify({ error: err, response: null }));
+   }else{
+      if(user.app_metadata.isAdmin){
+      res.setHeader('Content-Type', 'application/json');
+        init(function (err, resp) {
+          if (err) {
+            res.send(JSON.stringify({ error: err, response: null }));
           }
-          res.send(JSON.stringify({ error: err, response: null }));
-        }
-        else {
-          res.send(JSON.stringify({ response: readRes, error: null }));
-        }
+          else {
+            read("admin", "metadata", function (err, readRes) {
+              if (err) {
+                if (err.message.includes("No data exists for")) {
+                  err.message = "init failed";
+                }
+                res.send(JSON.stringify({ error: err, response: null }));
+              }
+              else {
+                res.send(JSON.stringify({ response: readRes, error: null }));
+              }
+            });
+          }
       });
+    }else{
+      res.send("Not authorized");
     }
+   }
   });
 });
 
 //locked by electon that has ended
 app.post('/addRegistrar', function (req, res) {
-  //REQUIRES: the name of a registrar, the registrar's key modulus, the registrar's key exponent, and their district
+  //REQUIRES: valid Authorization header and valid access token in header, the name of a registrar, the registrar's key modulus, the registrar's key exponent, and their district
   //PROMISES: if this registrar is a new registrar, and the key parts are encoded properly, and the district is valid, then this registrar will be added to the blockchain
   res.setHeader('Content-Type', 'application/json');
   var registrarName = req.body.registrarName  //empty check+preExistance check
@@ -150,133 +171,120 @@ app.post('/addRegistrar', function (req, res) {
   var registrarKeyExponent = req.body.registrarKeyExponent//empty check+encoding check
   var registrarDistrict = req.body.registrarDistrict//empty check+existance check
 
-  if (!registrarName || !registrarKeyModulus || !registrarKeyExponent || !registrarDistrict) {
-    err = new Error();
-    err.code = 400;
-    err.message = "you need to supply: a registrar name, their key modululus and exponent, and the name of their district ";
-    console.log(err.message);
-    res.send(JSON.stringify({ error: err, response: null }));
-  } else {
-    // Read chaincodeID and use this for sub sequent Invokes/Queries
-    readDocument(config.chainName, function (err, resp) { //not_found is the err.error if not found
-      if (err) {
-        err.code = 503;
-        err.message = "error reading election info from database";
-        res.send(JSON.stringify({ error: err, response: null }));
-      }
-      else {
-        chaincodeID = resp.electionData.chaincodeID;
-        districts = resp.electionData.districts;
-        voteOptions = resp.electionData.voteOptions;
-        startDate = resp.electionData.electionStart;
-        endDate = resp.electionData.electionEnd;
-      }
-    });
-    var iskeyExpValid = true;
-    var currDate = new Date();
-    if (currDate > endDate || currDate < startDate) {
-      err = new Error();
-      err.code = 400;
-      err.message = "The election is closed";
-      console.log(err.message);
-      res.send(JSON.stringify({ error: err, response: null }));
-    } else {
-      if (!iskeyExpValid) { //ADD CRYPTO CHECK
-        err = new Error();
-        err.code = 400;
-        err.message = registrarKeyModulus + " is not encoded properly";
-        console.log(err.message);
-        res.send(JSON.stringify({ error: err, response: null }));
-      } else {
-        chain.getUser("admin", function (err, user) {
-          if (err) {
-            err2 = new Error();
-            err2.code = 500;
-            err2.message = " Failed to register and enroll " + deployerName + ": " + err;
-            res.send(JSON.stringify({ error: err2, response: null }));
-          }
-          userObj = user;
+  var authToken = req.get("AccessToken");
+  
+  console.log(authToken);
 
-          //check if desired district exists!
-          read("admin", registrarDistrict, function (err, readResp) {
-            if (!readResp) {
-
-              if (err.message.includes("No data exists for")) {
-                err.message = registrarDistrict + " does not exist";
-              }
-
-              console.log(err.message);
-              delete err.stack;
+  webAuth.client.userInfo(authToken, function(err, user) {
+   if(err){
+     res.send(JSON.stringify({ error: err, response: null }));
+   }else{
+      if(user.app_metadata.isAdmin){
+        if (!registrarName || !registrarKeyModulus || !registrarKeyExponent || !registrarDistrict) {
+          err = new Error();
+          err.code = 400;
+          err.message = "you need to supply: a registrar name, their key modululus and exponent, and the name of their district ";
+          console.log(err.message);
+          res.send(JSON.stringify({ error: err, response: null }));
+        } else {
+          // Read chaincodeID and use this for sub sequent Invokes/Queries
+          readDocument(config.chainName, function (err, resp) { //not_found is the err.error if not found
+            if (err) {
+              err.code = 503;
+              err.message = "error reading election info from database";
               res.send(JSON.stringify({ error: err, response: null }));
             }
             else {
-              //check that this registrar hasn't already been registered
-              read("admin", "registarInfo", function (err, readResp) {
-                if (readResp && JSON.parse(readResp).hasOwnProperty(registrarName)) {
+              chaincodeID = resp.electionData.chaincodeID;
+              districts = resp.electionData.districts;
+              voteOptions = resp.electionData.voteOptions;
+              startDate = resp.electionData.electionStart;
+              endDate = resp.electionData.electionEnd;
+            }
+          });
+          var iskeyExpValid = true;
+          var currDate = new Date();
+          if (currDate > endDate || currDate < startDate) {
+            err = new Error();
+            err.code = 400;
+            err.message = "The election is closed";
+            console.log(err.message);
+            res.send(JSON.stringify({ error: err, response: null }));
+          } else {
+            if (!iskeyExpValid) { //ADD CRYPTO CHECK
+              err = new Error();
+              err.code = 400;
+              err.message = registrarKeyModulus + " is not encoded properly";
+              console.log(err.message);
+              res.send(JSON.stringify({ error: err, response: null }));
+            } else {
+              chain.getUser("admin", function (err, user) {
+                if (err) {
                   err2 = new Error();
                   err2.code = 500;
-                  err2.message = " The registrar " + registrarName + " is already registered ";
-                  delete err2.stack;
+                  err2.message = " Failed to register and enroll " + deployerName + ": " + err;
                   res.send(JSON.stringify({ error: err2, response: null }));
-                } else {
-
-                  //can now invoke, query, etc
-                  var args2 = [];
-                  args2.push(registrarName);
-                  args2.push(registrarKeyModulus);
-                  args2.push(registrarKeyExponent);
-                  args2.push(registrarDistrict);
-
-                  invoke(args2, "writeRegistar", function (err, resp) {
-                    if (err) {
-                      res.send(JSON.stringify({ error: err, response: null }));
-                    }
-                    else {
-                      resp.disclaimer = "This registration needs to be double checked";
-                      res.send(JSON.stringify({ response: resp, error: null }));
-                    }
-                  });
                 }
+                userObj = user;
 
+                //check if desired district exists!
+                read("admin", registrarDistrict, function (err, readResp) {
+                  if (!readResp) {
 
+                    if (err.message.includes("No data exists for")) {
+                      err.message = registrarDistrict + " does not exist";
+                    }
+
+                    console.log(err.message);
+                    delete err.stack;
+                    res.send(JSON.stringify({ error: err, response: null }));
+                  }
+                  else {
+                    //check that this registrar hasn't already been registered
+                    read("admin", "registarInfo", function (err, readResp) {
+                      if (readResp && JSON.parse(readResp).hasOwnProperty(registrarName)) {
+                        err2 = new Error();
+                        err2.code = 500;
+                        err2.message = " The registrar " + registrarName + " is already registered ";
+                        delete err2.stack;
+                        res.send(JSON.stringify({ error: err2, response: null }));
+                      } else {
+
+                        //can now invoke, query, etc
+                        var args2 = [];
+                        args2.push(registrarName);
+                        args2.push(registrarKeyModulus);
+                        args2.push(registrarKeyExponent);
+                        args2.push(registrarDistrict);
+
+                        invoke(args2, "writeRegistar", function (err, resp) {
+                          if (err) {
+                            res.send(JSON.stringify({ error: err, response: null }));
+                          }
+                          else {
+                            resp.disclaimer = "This registration needs to be double checked";
+                            res.send(JSON.stringify({ response: resp, error: null }));
+                          }
+                        });
+                      }
+                    });
+                  }
+                });
               });
-
             }
-
-          });
-
-
-
-
-
-
-
-
-
-        });
-
-
-
-
+          }
+        }
+      }else{
+        res.send("User is not admin");
       }
-
-
-    }
-
-
-
-
-  }
-
-
-
-
+   }
+  });
 });
 
 //******************************************************************************************ROUTES-REGISTRAR ONLY
 //locked by electon that has ended
 app.post('/registerVoter', function (req, res) {
-  //REQUIRES: the government ID of the voter, the name of the registrar who is doing the registration
+  //REQUIRES: the government ID of the voter, the name of the registrar who is doing the registration, the JWT token for the registrar
   //PROMISES: if this voter has not yet been registered, and the registrar is registered, the voter will be have a registration record created for them.
   res.setHeader('Content-Type', 'application/json');
   var govID = req.body.govID;
