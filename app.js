@@ -550,7 +550,7 @@ app.get('/results', function (req, res) {
           delete err.stack;
           res.send(JSON.stringify({ error: err, response: null }));
         } else {
-          read("admin", district, function (err, readRes) {
+          read("admin", "metadata", function (err, readRes) {
             resultReadCallback(err, readRes);
           });
         }
