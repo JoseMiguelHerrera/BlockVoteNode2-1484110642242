@@ -12,3 +12,14 @@ The Node.js Starter demonstrates a simple, reusable Node.js web application base
 6. Access the running app in a browser at http://localhost:6001
 
 [Install Node.js]: https://nodejs.org/en/download/
+
+## Manually reset the blockchain
+
+1. Log on to Bluemix.com
+2. Look at services and delete the Blockchain service used by Node.js server
+3. Go into BlockVote-DB and
+4. delete 'blockvote'
+5. Make a new Blockchain Service
+6. Launch the Blockchain Service and then copy the Service Credentials and overwrite thte ServiceCredentials.json with this new one.
+7. Push the changes, wait for the Node.js server to reset and use the new blockchain service
+8. When BlockVoteNode2 is in running state you can start the init operation
