@@ -833,6 +833,7 @@ function init(callback) { //INITIALIZATION
         delete err.stack;
         callback(err, null);
         */
+
         enrollAndRegisterUsers(callback, false); //ENROLL THE PRE-REGISTERED ADMIN (FROM membersrvc.YAML) AND SERVICECREDENTIALS
       } else {
         enrollAndRegisterUsers(callback, true); //ENROLL THE PRE-REGISTERED ADMIN (FROM membersrvc.YAML) AND SERVICECREDENTIALS, CALL deployChaincode!
@@ -915,14 +916,14 @@ function enrollAndRegisterUsers(callback, deploy) { //enrolls admin
     chain.setRegistrar(admin);
 
 
-    //register and enroll our custom user (would be nice to refactor this out)
-
+    //register and enroll our custom user (would be nice to refactor this out, for now commenting out)
+    /*
     //creating a new user
     var registrationRequest = {
       enrollmentID: newUserName,
       affiliation: config.user.affiliation
     };
-
+    
     chain.registerAndEnroll(registrationRequest, function (err, user) {
       if (err) {
         err = new Error();
@@ -930,7 +931,6 @@ function enrollAndRegisterUsers(callback, deploy) { //enrolls admin
         err.message = " Failed to register and enroll " + newUserName + ": " + err;
         callback(err, null);
       }
-      console.log("\nEnrolled and registered " + newUserName + " successfully");
       userObj = user;
 
       //setting timers for fabric waits
@@ -948,8 +948,28 @@ function enrollAndRegisterUsers(callback, deploy) { //enrolls admin
         delete err.stack;
         callback(err, null);
       }
-
     });
+    */
+
+    //setting timers for fabric waits
+    chain.setDeployWaitTime(config.deployWaitTime);
+    console.log("\nDeploying chaincode ...");
+
+    if (deploy) {
+      deployChaincode(callback);    //DEPLOYMENT OF CHAINCODE
+    } else {
+      console.log("Chaincode was already deployed and users are ready! You can now invoke and query");
+      console.log("election districts: " + districts);
+      err = new Error();
+      err.code = 202;
+      err.message = "deployment: chaincode already deployed. Ready to invoke and query"
+      delete err.stack;
+      callback(err, null);
+    }
+
+
+
+
   });
 }
 
