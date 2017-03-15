@@ -824,7 +824,6 @@ function init(callback) { //INITIALIZATION
         callback(err, null);
       }
       if (chaincodeIDKnown) {
-        /*
         console.log("Chaincode was already deployed and users are ready! You can now invoke and query");
         console.log("election districts: " + districts);
         err = new Error();
@@ -832,11 +831,8 @@ function init(callback) { //INITIALIZATION
         err.message = "deployment: chaincode already deployed. Ready to invoke and query"
         delete err.stack;
         callback(err, null);
-        */
-
-        enrollAndRegisterUsers(callback, false); //ENROLL THE PRE-REGISTERED ADMIN (FROM membersrvc.YAML) AND SERVICECREDENTIALS
       } else {
-        enrollAndRegisterUsers(callback, true); //ENROLL THE PRE-REGISTERED ADMIN (FROM membersrvc.YAML) AND SERVICECREDENTIALS, CALL deployChaincode!
+        enrollAndRegisterUsers(callback); //ENROLL THE PRE-REGISTERED ADMIN (FROM membersrvc.YAML) AND SERVICECREDENTIALS, CALL deployChaincode!
       }
     });
 
@@ -898,10 +894,11 @@ function setup() {
   */
 }
 
-function enrollAndRegisterUsers(callback, deploy) { //enrolls admin
+function enrollAndRegisterUsers(callback) { //enrolls admin
 
   // Enroll a 'admin' who is already registered because it is
   // listed in fabric/membersrvc/membersrvc.yaml with it's one time password.
+
   chain.enroll(users[0].enrollId, users[0].enrollSecret, function (err, admin) {
     if (err) {
       err = new Error();
@@ -914,10 +911,8 @@ function enrollAndRegisterUsers(callback, deploy) { //enrolls admin
 
     // Set this user as the chain's registrar which is authorized to register other users.
     chain.setRegistrar(admin);
-
-
-    //register and enroll our custom user (would be nice to refactor this out, for now commenting out)
-    /*
+    //register and enroll our custom user (would be nice to refactor this out)
+    
     //creating a new user
     var registrationRequest = {
       enrollmentID: newUserName,
@@ -936,40 +931,9 @@ function enrollAndRegisterUsers(callback, deploy) { //enrolls admin
       //setting timers for fabric waits
       chain.setDeployWaitTime(config.deployWaitTime);
       console.log("\nDeploying chaincode ...");
-
-      if (deploy) {
-        deployChaincode(callback);    //DEPLOYMENT OF CHAINCODE
-      } else{
-        console.log("Chaincode was already deployed and users are ready! You can now invoke and query");
-        console.log("election districts: " + districts);
-        err = new Error();
-        err.code = 202;
-        err.message = "deployment: chaincode already deployed. Ready to invoke and query"
-        delete err.stack;
-        callback(err, null);
-      }
-    });
-    */
-
-    //setting timers for fabric waits
-    chain.setDeployWaitTime(config.deployWaitTime);
-    console.log("\nDeploying chaincode ...");
-
-    if (deploy) {
       deployChaincode(callback);    //DEPLOYMENT OF CHAINCODE
-    } else {
-      console.log("Chaincode was already deployed and users are ready! You can now invoke and query");
-      console.log("election districts: " + districts);
-      err = new Error();
-      err.code = 202;
-      err.message = "deployment: chaincode already deployed. Ready to invoke and query"
-      delete err.stack;
-      callback(err, null);
-    }
-
-
-
-
+    });
+    
   });
 }
 
