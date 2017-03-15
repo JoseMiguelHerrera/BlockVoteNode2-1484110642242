@@ -20,8 +20,8 @@ app.use(bodyParser.urlencoded({ extended: true })); // support encoded bodies
 // get the app environment from Cloud Foundry
 var appEnv = cfenv.getAppEnv();
 
-var cloudantUsername = '254ec36f-02c6-43e4-99ea-b840f2404041-bluemix';
-var cloudantPassword = "8eae1d3dd1c3c4cc1b6e002c79e3ae18eaab2f328be5cad6ec9f0c2ab6421002"; //if we ever store anything remotely sensitive, we can't have this p/w here
+var cloudantUsername = '254ec36f-02c6-43e4-99ea-b840f2404041-bluemix'; //  51e6380a-0c44-4b6d-80e0-5da36d316f50-bluemix
+var cloudantPassword = "8eae1d3dd1c3c4cc1b6e002c79e3ae18eaab2f328be5cad6ec9f0c2ab6421002"; //if we ever store anything remotely sensitive, we can't have this p/w here //   f41f37308952bcc86cb775afcab54f5922eeb960a51799be82008b2d6f50c2d5
 var cloudant = Cloudant({ account: cloudantUsername, password: cloudantPassword });
 var blockvoteDB;
 
@@ -140,12 +140,9 @@ app.get('/init', function (req, res) { //NEEDS TO BE CALLED EVERYTIME THE SERVER
         console.log(err.message);
         res.send(JSON.stringify({ error: err, response: null }));
       } else {
-        //check user not null - auth failed
-        //check user.app_metadata not null -not authorized
-
         if (user.app_metadata.isAdmin === "true") {
           res.setHeader('Content-Type', 'application/json');
-          init(function (err, resp) {
+          init(function (err, resp) { //actual initialization function
             if (err) {
               res.send(JSON.stringify({ error: err, response: null }));
             }
@@ -274,7 +271,10 @@ app.post('/addRegistrar', function (req, res) {
                           args2.push(registrarKeyExponent);
                           args2.push(registrarDistrict);
 
+
+
                           invoke(args2, "writeRegistar", function (err, resp) {
+                            /*
                             if (err) {
                               res.send(JSON.stringify({ error: err, response: null }));
                             }
@@ -282,7 +282,10 @@ app.post('/addRegistrar', function (req, res) {
                               resp.disclaimer = "This registration needs to be double checked";
                               res.send(JSON.stringify({ response: resp, error: null }));
                             }
+                            */
                           });
+                          res.send(JSON.stringify({ response: { code: 200, disclaimer: "This registration needs to be double checked" }, error: null }));
+                          //no need to wait for response or error, since they don't include anything for double checking.
                         }
                       });
                     }
@@ -378,6 +381,7 @@ app.post('/registerVoter', function (req, res) {
                 args2.push(registrarName);
 
                 invoke(args2, "register", function (err, resp) {
+                  /*
                   if (err) {
                     res.send(JSON.stringify({ error: err, response: null }));
                   }
@@ -385,8 +389,10 @@ app.post('/registerVoter', function (req, res) {
                     resp.disclaimer = "This voter registration needs to be double checked";
                     res.send(JSON.stringify({ response: resp, error: null }));
                   }
+                  */
                 });
-
+                res.send(JSON.stringify({ response: { code: 200, disclaimer: "This registration needs to be double checked" }, error: null }));
+                //no need to wait for response or error, since they don't include anything for double checking.
               }
             });
           }
@@ -723,6 +729,7 @@ app.post('/writeVote', function (req, res) {
                       args2.push(vote);
                       args2.push(registrarName);
                       invoke(args2, "writeVote", function (err, resp) {
+                        /*
                         if (err) {
                           res.send(JSON.stringify({ error: err, response: null }));
                         }
@@ -730,11 +737,11 @@ app.post('/writeVote', function (req, res) {
                           resp.disclaimer = "This vote need to be double checked";
                           res.send(JSON.stringify({ response: resp, error: null }));
                         }
+                        */
                       });
-
+                      res.send(JSON.stringify({ response: { code: 200, disclaimer: "This vote needs to be double checked" }, error: null }));
+                      //no need to wait for response or error, since they don't include anything for double checking.
                     }
-
-
                   }
                 }
               });
@@ -913,7 +920,6 @@ function enrollAndRegisterUsers(callback) { //enrolls admin
       affiliation: config.user.affiliation
     };
 
-
     chain.registerAndEnroll(registrationRequest, function (err, user) {
       if (err) {
         err = new Error();
@@ -924,14 +930,11 @@ function enrollAndRegisterUsers(callback) { //enrolls admin
       console.log("\nEnrolled and registered " + newUserName + " successfully");
       userObj = user;
 
-
       //setting timers for fabric waits
       chain.setDeployWaitTime(config.deployWaitTime);
       console.log("\nDeploying chaincode ...");
       deployChaincode(callback);    //DEPLOYMENT OF CHAINCODE
     });
-
-
   });
 }
 
