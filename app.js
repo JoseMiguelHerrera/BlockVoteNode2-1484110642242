@@ -9,6 +9,11 @@ var express = require('express');
 var auth0 = require('auth0-js');
 // cfenv provides access to your Cloud Foundry environment
 var cfenv = require('cfenv');
+
+//allows Cross Origin Resource Sharing [only during testing phase, TO BE REMOVED] 
+var cors = require('cors')
+
+
 // create a new express server
 var app = express();
 // serve the files out of ./public as our main files
@@ -17,6 +22,7 @@ app.use(express.static(__dirname + '/public'));
 var bodyParser = require('body-parser');
 app.use(bodyParser.json()); // support json encoded bodies
 app.use(bodyParser.urlencoded({ extended: true })); // support encoded bodies
+app.use(cors()) //enable CORS
 // get the app environment from Cloud Foundry
 var appEnv = cfenv.getAppEnv();
 
