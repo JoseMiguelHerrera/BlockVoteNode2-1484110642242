@@ -1,6 +1,6 @@
 applications:
 - path: .
-  memory: 1000M
+  memory: 1351M
   instances: 1
   domain: mybluemix.net
   name: BlockVoteNode2
