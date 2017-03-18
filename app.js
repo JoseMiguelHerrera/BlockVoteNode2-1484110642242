@@ -57,7 +57,7 @@ if (process.env.VCAP_APPLICATION) {
   }
 }
 if (process.env.VCAP_SERVICES) {
-  console.log(TAG + 'This app is running in Bluemix.');
+  console.log('This app is running in Bluemix.');
   exports.SERVER = {
     HOST: process.env.VCAP_APP_HOST || '0.0.0.0',
     PORT: process.env.VCAP_APP_PORT || process.env.PORT,
