@@ -45,11 +45,44 @@ app.use('/init', authenticate);
 app.use('/addRegistrar', authenticate);
 app.use('/registerVoter', authenticate);
 
+
+var vcap_app = { application_uris: [''] };
+var ext_uri = '';
+if (process.env.VCAP_APPLICATION) {
+  vcap_app = JSON.parse(process.env.VCAP_APPLICATION);
+  for (var i in vcap_app.application_uris) {
+    if (vcap_app.application_uris[i].indexOf(vcap_app.name) >= 0) {
+      ext_uri = vcap_app.application_uris[i];
+    }
+  }
+}
+if (process.env.VCAP_SERVICES) {
+  console.log(TAG + 'This app is running in Bluemix.');
+  exports.SERVER = {
+    HOST: process.env.VCAP_APP_HOST || '0.0.0.0',
+    PORT: process.env.VCAP_APP_PORT || process.env.PORT,
+    DESCRIPTION: 'Bluemix - Production',
+    EXTURI: ext_uri
+  };
+} else {
+  console.log('Assuming this app is running on localhost.');
+  exports.SERVER = {
+    HOST: 'localhost',
+    PORT: 3000,
+    DESCRIPTION: 'Localhost',
+    EXTURI: process.env.EXTURI || 'localhost:3000'
+  };
+}
+exports.SERVER.vcap_app = vcap_app;
+exports.DEBUG = vcap_app;
+
+
+
+
 // start server on the specified port and binding host
-app.listen(appEnv.port, '0.0.0.0', function () {
-  // print a message when the server starts listening
-  console.log("server starting on " + appEnv.url);
-});
+var port = process.env.PORT || process.env.VCAP_APP_PORT || 3000;
+app.listen(port);
+console.log('listening at:', port);
 
 //******************************************************************************************CLOUDANT FUNCTIONS
 var createDataBase = function (callback) {
@@ -918,13 +951,13 @@ function enrollAndRegisterUsers(callback) { //enrolls admin
     // Set this user as the chain's registrar which is authorized to register other users.
     chain.setRegistrar(admin);
     //register and enroll our custom user (would be nice to refactor this out)
-    
+
     //creating a new user
     var registrationRequest = {
       enrollmentID: newUserName,
       affiliation: config.user.affiliation
     };
-    
+
     chain.registerAndEnroll(registrationRequest, function (err, user) {
       if (err) {
         err = new Error();
@@ -939,7 +972,7 @@ function enrollAndRegisterUsers(callback) { //enrolls admin
       console.log("\nDeploying chaincode ...");
       deployChaincode(callback);    //DEPLOYMENT OF CHAINCODE
     });
-    
+
   });
 }
 
