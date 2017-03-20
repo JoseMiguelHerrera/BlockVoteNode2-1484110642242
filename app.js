@@ -21,6 +21,10 @@ var memwatch = require('memwatch-next');
 
 // create a new express server
 var app = express();
+
+//help us with the scalibility problem
+var queue = require('express-queue');
+
 // serve the files out of ./public as our main files
 app.use(express.static(__dirname + '/public'));
 //to get post variables
@@ -28,6 +32,8 @@ var bodyParser = require('body-parser');
 app.use(bodyParser.json()); // support json encoded bodies
 app.use(bodyParser.urlencoded({ extended: true })); // support encoded bodies
 app.use(cors()) //enable CORS
+app.use(queue({ activeLimit: 1 })); //setting concurrency for each route to 1 to ENSURE it works.
+
 // get the app environment from Cloud Foundry
 var appEnv = cfenv.getAppEnv();
 
