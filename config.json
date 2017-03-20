@@ -1,5 +1,8 @@
 {
     "chainName": "Scottish Independence",
+    "electionQuestion": "Should Scotland be an independent country?",
+    "electionFlagURL": "https://en.wikipedia.org/wiki/Scotland#/media/File:Flag_of_Scotland.svg",
+    "districtAlias": "City",
     "deployWaitTime": "60",
     "user": {
         "username": "Other User Who Is Not Doing Anything",

@@ -19,14 +19,6 @@ var cors = require('cors')
 //for detecting memory leaks
 var memwatch = require('memwatch-next');
 
-memwatch.on('leak', function (info) {
-  console.log("****************************************** MEM-WATCH")
-  console.log("heap usage has increased for five consecutive garbage collections");
-  console.log(info);
-  console.log("****************************************** MEM-WATCH")
-
-});
-
 // create a new express server
 var app = express();
 // serve the files out of ./public as our main files
@@ -39,8 +31,16 @@ app.use(cors()) //enable CORS
 // get the app environment from Cloud Foundry
 var appEnv = cfenv.getAppEnv();
 
-var cloudantUsername = '254ec36f-02c6-43e4-99ea-b840f2404041-bluemix'; //   //  //51e6380a-0c44-4b6d-80e0-5da36d316f50-bluemix
-var cloudantPassword = "8eae1d3dd1c3c4cc1b6e002c79e3ae18eaab2f328be5cad6ec9f0c2ab6421002"; //if we ever store anything remotely sensitive, we can't have this p/w here //f41f37308952bcc86cb775afcab54f5922eeb960a51799be82008b2d6f50c2d5
+
+//production DB
+//This needs to be moved to environment variables
+var cloudantUsername = '254ec36f-02c6-43e4-99ea-b840f2404041-bluemix'; 
+var cloudantPassword = "8eae1d3dd1c3c4cc1b6e002c79e3ae18eaab2f328be5cad6ec9f0c2ab6421002";
+
+//Jose's personal DB
+//var cloudantUsername = '51e6380a-0c44-4b6d-80e0-5da36d316f50-bluemix';
+//var cloudantPassword = "f41f37308952bcc86cb775afcab54f5922eeb960a51799be82008b2d6f50c2d5";
+
 var cloudant = Cloudant({ account: cloudantUsername, password: cloudantPassword });
 var blockvoteDB;
 
@@ -85,6 +85,14 @@ if (process.env.VCAP_SERVICES) {
     DESCRIPTION: 'Localhost',
     EXTURI: process.env.EXTURI || 'localhost:3000'
   };
+
+  //do leak detection when running locally
+  memwatch.on('leak', function (info) {
+    console.log("****************************************** MEM-WATCH")
+    console.log("heap usage has increased for five consecutive garbage collections");
+    console.log(info);
+    console.log("****************************************** MEM-WATCH")
+  });
 }
 exports.SERVER.vcap_app = vcap_app;
 exports.DEBUG = vcap_app;
@@ -168,7 +176,7 @@ createDataBase(function (err, resp) {
 });
 
 app.get('/authping', function (req, res) {
-    res.status(200).send("Server responding to ping");
+  res.status(200).send("Server responding to ping");
 });
 
 //******************************************************************************************ROUTES-ADMIN ONLY
@@ -484,57 +492,57 @@ app.post('/readDistrict', function (req, res) {
   POST district: name of district you want to get information about
   PROMISES: data about the district, if valid
   */
-sleep.usleep(Math.round(Math.random() * (2000000 - 100000) + 100000));
- res.setHeader('Content-Type', 'application/json');
-    var district = req.body.district;
-    function readDistrictCallback(err, readRes) {
-      if (err) {
-        if (err.message.includes("No data exists for")) {
-          err.message = district + " is not a valid district";
-        }
-        res.send(JSON.stringify({ error: err, response: null }));
+  sleep.usleep(Math.round(Math.random() * (2000000 - 100000) + 100000));
+  res.setHeader('Content-Type', 'application/json');
+  var district = req.body.district;
+  function readDistrictCallback(err, readRes) {
+    if (err) {
+      if (err.message.includes("No data exists for")) {
+        err.message = district + " is not a valid district";
       }
-      else {
-        res.send(JSON.stringify({ response: readRes, error: null }));
-      }
+      res.send(JSON.stringify({ error: err, response: null }));
     }
-    readDocument(config.chainName, function (err, resp) {
-      if (err) {
-        err.code = 503;
-        err.message = "error reading election info from database";
-        res.send(JSON.stringify({ error: err, response: null }));
-      }
-      else {
-        chaincodeID = resp.electionData.chaincodeID;
-        districts = resp.electionData.districts;
-        voteOptions = resp.electionData.voteOptions;
-        startDate = resp.electionData.electionStart;
-        endDate = resp.electionData.electionEnd;
-        allowLiveResults = resp.electionData.liveResults;
+    else {
+      res.send(JSON.stringify({ response: readRes, error: null }));
+    }
+  }
+  readDocument(config.chainName, function (err, resp) {
+    if (err) {
+      err.code = 503;
+      err.message = "error reading election info from database";
+      res.send(JSON.stringify({ error: err, response: null }));
+    }
+    else {
+      chaincodeID = resp.electionData.chaincodeID;
+      districts = resp.electionData.districts;
+      voteOptions = resp.electionData.voteOptions;
+      startDate = resp.electionData.electionStart;
+      endDate = resp.electionData.electionEnd;
+      allowLiveResults = resp.electionData.liveResults;
 
-        var currDate = Date.now();
-        if (currDate < endDate) {
-          //election open
-          console.log("allowLiveResults: " + allowLiveResults)
-          if (allowLiveResults === "no") {
-            err = new Error();
-            err.code = 400;
-            err.message = "Live results not allowed for this election, please wait for it to finish";
-            delete err.stack;
-            res.send(JSON.stringify({ error: err, response: null }));
-          } else {
-            read("admin", district, function (err, readRes) {
-              readDistrictCallback(err, readRes);
-            });
-          }
+      var currDate = Date.now();
+      if (currDate < endDate) {
+        //election open
+        console.log("allowLiveResults: " + allowLiveResults)
+        if (allowLiveResults === "no") {
+          err = new Error();
+          err.code = 400;
+          err.message = "Live results not allowed for this election, please wait for it to finish";
+          delete err.stack;
+          res.send(JSON.stringify({ error: err, response: null }));
         } else {
-          //election closed  
           read("admin", district, function (err, readRes) {
             readDistrictCallback(err, readRes);
           });
         }
+      } else {
+        //election closed  
+        read("admin", district, function (err, readRes) {
+          readDistrictCallback(err, readRes);
+        });
       }
-    });
+    }
+  });
 });
 
 app.post('/readVote', function (req, res) {
@@ -587,59 +595,59 @@ app.get('/results', function (req, res) {
   //PROMISES: get overall results of election, plus number of districts and the name of the eleciton
   sleep.usleep(Math.round(Math.random() * (1000000 - 50000) + 50000));
 
-   res.setHeader('Content-Type', 'application/json');
-    function resultReadCallback(err, readRes) {
-      if (err) {
-        if (err.message.includes("No data exists for")) {
-          err.message = "election has not yet been initializied properly";
-        }
-        res.send(JSON.stringify({ error: err, response: null }));
-      } else {
-        res.send(JSON.stringify({ response: readRes, error: null }));
+  res.setHeader('Content-Type', 'application/json');
+  function resultReadCallback(err, readRes) {
+    if (err) {
+      if (err.message.includes("No data exists for")) {
+        err.message = "election has not yet been initializied properly";
       }
+      res.send(JSON.stringify({ error: err, response: null }));
+    } else {
+      res.send(JSON.stringify({ response: readRes, error: null }));
     }
+  }
 
-    readDocument(config.chainName, function (err, resp) {
-      if (err) {
-        err.code = 503;
-        err.message = "error reading election info from database";
-        res.send(JSON.stringify({ error: err, response: null }));
-      }
-      else {
-        chaincodeID = resp.electionData.chaincodeID;
-        districts = resp.electionData.districts;
-        voteOptions = resp.electionData.voteOptions;
-        startDate = resp.electionData.electionStart;
-        endDate = resp.electionData.electionEnd;
-        allowLiveResults = resp.electionData.liveResults;
+  readDocument(config.chainName, function (err, resp) {
+    if (err) {
+      err.code = 503;
+      err.message = "error reading election info from database";
+      res.send(JSON.stringify({ error: err, response: null }));
+    }
+    else {
+      chaincodeID = resp.electionData.chaincodeID;
+      districts = resp.electionData.districts;
+      voteOptions = resp.electionData.voteOptions;
+      startDate = resp.electionData.electionStart;
+      endDate = resp.electionData.electionEnd;
+      allowLiveResults = resp.electionData.liveResults;
 
-        var currDate = Date.now();
-        if (currDate < endDate) {
-          //election open
-          console.log("allowLiveResults: " + allowLiveResults)
-          if (allowLiveResults === "no") {
-            err = new Error();
-            err.code = 400;
-            err.message = "Live results not allowed for this election, please wait for it to finish";
-            delete err.stack;
-            res.send(JSON.stringify({ error: err, response: null }));
-          } else {
-            read("admin", "metadata", function (err, readRes) {
-              resultReadCallback(err, readRes);
-            });
-          }
+      var currDate = Date.now();
+      if (currDate < endDate) {
+        //election open
+        console.log("allowLiveResults: " + allowLiveResults)
+        if (allowLiveResults === "no") {
+          err = new Error();
+          err.code = 400;
+          err.message = "Live results not allowed for this election, please wait for it to finish";
+          delete err.stack;
+          res.send(JSON.stringify({ error: err, response: null }));
         } else {
-          //election closed  
           read("admin", "metadata", function (err, readRes) {
             resultReadCallback(err, readRes);
           });
         }
-
-
-
-
+      } else {
+        //election closed  
+        read("admin", "metadata", function (err, readRes) {
+          resultReadCallback(err, readRes);
+        });
       }
-    });
+
+
+
+
+    }
+  });
 });
 
 app.get('/getRegistrarInfo', function (req, res) {
@@ -1043,7 +1051,10 @@ function deployChaincode(callback) {
         voteOptions: voteOptions,
         electionStart: startDate,
         electionEnd: endDate,
-        liveResults: areLiveResultsAllowed
+        liveResults: areLiveResultsAllowed,
+        electionQuestion: config.electionQuestion,
+        electionFlagURL: config.electionFlagURL,
+        districtAlias: config.districtAlias
       };
     // Save the election info
     createDocument(config.chainName, electionData, function (err, resp) { //write (chainName: chaincodeID) to db
