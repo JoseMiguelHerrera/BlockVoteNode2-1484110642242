@@ -32,7 +32,7 @@ var bodyParser = require('body-parser');
 app.use(bodyParser.json()); // support json encoded bodies
 app.use(bodyParser.urlencoded({ extended: true })); // support encoded bodies
 app.use(cors()) //enable CORS
-app.use(queue({ activeLimit: 1 })); //setting concurrency for each route to 1 to ENSURE it works.
+//app.use(queue({ activeLimit: 1 })); //setting concurrency for each route to 1 to ENSURE it works.
 
 // get the app environment from Cloud Foundry
 var appEnv = cfenv.getAppEnv();
@@ -1217,8 +1217,14 @@ function read(userNameAction, key, callback) {
                   }
                 });
               } catch (err2) {
-                console.log("query threw an error")
-                callback(err2, null);
+
+                console.log("query threw an error");
+                console.log(err2);
+
+                err3 = new Error();
+                err3.code = 503;
+                err3.message = "Oops the blockchain is overloaded, please try again.";
+                callback(err3, null);
               }
 
             }
