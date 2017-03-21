@@ -40,7 +40,7 @@ var appEnv = cfenv.getAppEnv();
 
 //production DB
 //This needs to be moved to environment variables
-var cloudantUsername = '254ec36f-02c6-43e4-99ea-b840f2404041-bluemix'; 
+var cloudantUsername = '254ec36f-02c6-43e4-99ea-b840f2404041-bluemix';
 var cloudantPassword = "8eae1d3dd1c3c4cc1b6e002c79e3ae18eaab2f328be5cad6ec9f0c2ab6421002";
 
 //Jose's personal DB
@@ -498,7 +498,7 @@ app.post('/readDistrict', function (req, res) {
   POST district: name of district you want to get information about
   PROMISES: data about the district, if valid
   */
-  sleep.usleep(Math.round(Math.random() * (2000000 - 100000) + 100000));
+  //sleep.usleep(Math.round(Math.random() * (2000000 - 100000) + 100000));
   res.setHeader('Content-Type', 'application/json');
   var district = req.body.district;
   function readDistrictCallback(err, readRes) {
@@ -599,7 +599,7 @@ app.get('/results', function (req, res) {
 
   //REQUIRES: for an election to have been deployed from the config file
   //PROMISES: get overall results of election, plus number of districts and the name of the eleciton
-  sleep.usleep(Math.round(Math.random() * (1000000 - 50000) + 50000));
+  //sleep.usleep(Math.round(Math.random() * (1000000 - 50000) + 50000));
 
   res.setHeader('Content-Type', 'application/json');
   function resultReadCallback(err, readRes) {
@@ -1196,37 +1196,31 @@ function read(userNameAction, key, callback) {
           chaincodeID = resp.electionData.chaincodeID;
           districts = resp.electionData.districts;
           voteOptions = resp.electionData.voteOptions;
+
+          chain.getUser(userNameAction, function (err, user) {
+            if (err) {
+              err2 = new Error();
+              err2.code = 500;
+              err2.message = " Failed to register and enroll " + deployerName + ": " + err;
+              callback(err2, null);
+            } else {
+              userObj = user;
+              //can now invoke, query, etc
+              query(key, function (err, resp) {
+                if (err) {
+                  callback(err, null);
+                }
+                else {
+                  callback(null, resp);
+                }
+              });
+            }
+          });
         }
-      });
-
-      chain.getUser(userNameAction, function (err, user) {
-        if (err) {
-          err2 = new Error();
-          err2.code = 500;
-          err2.message = " Failed to register and enroll " + deployerName + ": " + err;
-          callback(err2, null);
-
-        }
-        userObj = user;
-
-        //can now invoke, query, etc
-
-        query(key, function (err, resp) {
-          if (err) {
-            callback(err, null);
-          }
-          else {
-            callback(null, resp);
-          }
-        });
-
-
-      });
-    }
+    });
   }
 }
-
-
+}
 
 function getArgs(request) {
   var args = [];
