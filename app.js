@@ -1206,20 +1206,27 @@ function read(userNameAction, key, callback) {
             } else {
               userObj = user;
               //can now invoke, query, etc
-              query(key, function (err, resp) {
-                if (err) {
-                  callback(err, null);
-                }
-                else {
-                  callback(null, resp);
-                }
-              });
+
+              try {
+                query(key, function (err, resp) {
+                  if (err) {
+                    callback(err, null);
+                  }
+                  else {
+                    callback(null, resp);
+                  }
+                });
+              } catch (err2) {
+                console.log("query threw an error")
+                callback(err2, null);
+              }
+
             }
           });
         }
-    });
+      });
+    }
   }
-}
 }
 
 function getArgs(request) {
