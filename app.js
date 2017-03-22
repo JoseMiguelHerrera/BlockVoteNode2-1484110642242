@@ -339,22 +339,17 @@ app.post('/addRegistrar', function (req, res) {
 
 
                           try {
-                            invoke(args2, "writeRegistar", function (err, resp) { });
+                            invoke(args2, "writeRegistar", function (err, resp) {
+                              res.send(JSON.stringify({ response: { code: 200, disclaimer: "This registration needs to be double checked" }, error: null }));
+                            });
                           } catch (err2) {
 
                             console.log("invoke threw an error in: add registrar");
-                            console.log(err2);
-
                             err3 = new Error();
                             err3.code = 503;
                             err3.message = "Oops the blockchain is overloaded, please try again.";
                             callback(err3, null);
                           }
-
-
-
-                          res.send(JSON.stringify({ response: { code: 200, disclaimer: "This registration needs to be double checked" }, error: null }));
-                          //no need to wait for response or error, since they don't include anything for double checking.
                         }
                       });
                     }
@@ -450,21 +445,17 @@ app.post('/registerVoter', function (req, res) {
                 args2.push(registrarName);
 
                 try {
-                  invoke(args2, "register", function (err, resp) { });
+                  invoke(args2, "register", function (err, resp) {
+                    res.send(JSON.stringify({ response: { code: 200, disclaimer: "This registration needs to be double checked" }, error: null }));
+                   });
                 } catch (err2) {
 
                   console.log("invoke threw an error in: registerVoter");
-                  console.log(err2);
-
                   err3 = new Error();
                   err3.code = 503;
                   err3.message = "Oops the blockchain is overloaded, please try again.";
                   callback(err3, null);
                 }
-
-
-                res.send(JSON.stringify({ response: { code: 200, disclaimer: "This registration needs to be double checked" }, error: null }));
-                //no need to wait for response or error, since they don't include anything for double checking.
               }
             });
           }
@@ -803,21 +794,16 @@ app.post('/writeVote', function (req, res) {
 
 
                       try {
-                        invoke(args2, "writeVote", function (err, resp) { });
+                        invoke(args2, "writeVote", function (err, resp) {
+                          res.send(JSON.stringify({ response: { code: 200, disclaimer: "This vote needs to be double checked" }, error: null }));
+                         });
                       } catch (err2) {
-
                         console.log("invoke threw an error in: writevote");
-                        console.log(err2);
-
                         err3 = new Error();
                         err3.code = 503;
                         err3.message = "Oops the blockchain is overloaded, please try again.";
                         callback(err3, null);
                       }
-
-
-                      res.send(JSON.stringify({ response: { code: 200, disclaimer: "This vote needs to be double checked" }, error: null }));
-                      //no need to wait for response or error, since they don't include anything for double checking.
                     }
                   }
                 }
@@ -1230,8 +1216,6 @@ function read(userNameAction, key, callback) {
               } catch (err2) {
 
                 console.log("query threw an error");
-                console.log(err2);
-
                 err3 = new Error();
                 err3.code = 503;
                 err3.message = "Oops the blockchain is overloaded, please try again.";
