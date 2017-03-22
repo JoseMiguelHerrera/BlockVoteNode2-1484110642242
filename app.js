@@ -338,18 +338,21 @@ app.post('/addRegistrar', function (req, res) {
                           args2.push(registrarDistrict);
 
 
+                          try {
+                            invoke(args2, "writeRegistar", function (err, resp) { });
+                          } catch (err2) {
 
-                          invoke(args2, "writeRegistar", function (err, resp) {
-                            /*
-                            if (err) {
-                              res.send(JSON.stringify({ error: err, response: null }));
-                            }
-                            else {
-                              resp.disclaimer = "This registration needs to be double checked";
-                              res.send(JSON.stringify({ response: resp, error: null }));
-                            }
-                            */
-                          });
+                            console.log("invoke threw an error in: add registrar");
+                            console.log(err2);
+
+                            err3 = new Error();
+                            err3.code = 503;
+                            err3.message = "Oops the blockchain is overloaded, please try again.";
+                            callback(err3, null);
+                          }
+
+
+
                           res.send(JSON.stringify({ response: { code: 200, disclaimer: "This registration needs to be double checked" }, error: null }));
                           //no need to wait for response or error, since they don't include anything for double checking.
                         }
@@ -446,17 +449,20 @@ app.post('/registerVoter', function (req, res) {
                 args2.push(govID);
                 args2.push(registrarName);
 
-                invoke(args2, "register", function (err, resp) {
-                  /*
-                  if (err) {
-                    res.send(JSON.stringify({ error: err, response: null }));
-                  }
-                  else {
-                    resp.disclaimer = "This voter registration needs to be double checked";
-                    res.send(JSON.stringify({ response: resp, error: null }));
-                  }
-                  */
-                });
+                try {
+                  invoke(args2, "register", function (err, resp) { });
+                } catch (err2) {
+
+                  console.log("invoke threw an error in: registerVoter");
+                  console.log(err2);
+
+                  err3 = new Error();
+                  err3.code = 503;
+                  err3.message = "Oops the blockchain is overloaded, please try again.";
+                  callback(err3, null);
+                }
+
+
                 res.send(JSON.stringify({ response: { code: 200, disclaimer: "This registration needs to be double checked" }, error: null }));
                 //no need to wait for response or error, since they don't include anything for double checking.
               }
@@ -794,17 +800,22 @@ app.post('/writeVote', function (req, res) {
                       args2.push(signedTokenSig);
                       args2.push(vote);
                       args2.push(registrarName);
-                      invoke(args2, "writeVote", function (err, resp) {
-                        /*
-                        if (err) {
-                          res.send(JSON.stringify({ error: err, response: null }));
-                        }
-                        else {
-                          resp.disclaimer = "This vote need to be double checked";
-                          res.send(JSON.stringify({ response: resp, error: null }));
-                        }
-                        */
-                      });
+
+
+                      try {
+                        invoke(args2, "writeVote", function (err, resp) { });
+                      } catch (err2) {
+
+                        console.log("invoke threw an error in: writevote");
+                        console.log(err2);
+
+                        err3 = new Error();
+                        err3.code = 503;
+                        err3.message = "Oops the blockchain is overloaded, please try again.";
+                        callback(err3, null);
+                      }
+
+
                       res.send(JSON.stringify({ response: { code: 200, disclaimer: "This vote needs to be double checked" }, error: null }));
                       //no need to wait for response or error, since they don't include anything for double checking.
                     }
