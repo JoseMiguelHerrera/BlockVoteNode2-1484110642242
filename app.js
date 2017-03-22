@@ -32,7 +32,7 @@ var bodyParser = require('body-parser');
 app.use(bodyParser.json()); // support json encoded bodies
 app.use(bodyParser.urlencoded({ extended: true })); // support encoded bodies
 app.use(cors()) //enable CORS
-//app.use(queue({ activeLimit: 1 })); //setting concurrency for each route to 1 to ENSURE it works.
+app.use(queue({ activeLimit: 1 })); //setting concurrency for each route to 1 to ENSURE it works.
 
 // get the app environment from Cloud Foundry
 var appEnv = cfenv.getAppEnv();
