@@ -488,7 +488,9 @@ func (t *SimpleChaincode) writeVote(stub shim.ChaincodeStubInterface, args []str
 	} else {
 		return nil, errors.New("Invalid vote!")
 	}
-	votingDistrictToUpdate.Votes[signedTokenID+signedTokenSig] = value
+
+	//we can use the timestamp as a key because there's no concurrency. When we update to fabric 1.0 this will have to be changed (as it has concurrency)
+	votingDistrictToUpdate.Votes[time.Now().UTC().Format(time.RFC850)] = value
 
 	//update district
 	NewDistrictDataJSON, err := json.Marshal(votingDistrictToUpdate) //golang JSON (byte array)
