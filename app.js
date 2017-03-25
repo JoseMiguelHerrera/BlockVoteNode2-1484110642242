@@ -1148,11 +1148,14 @@ function query(key, callback) {
   queryTx.on('error', function (err) {
 
     err = JSON.parse(err.msg)
+
+    console.log(err);
+
     if (err.Error.description === "Secure read failed") {
       console.log("the typical wake up error happened. Trying again.")
 
+      /*
       var queryTx2 = userObj.query(queryRequest);
-
       queryTx2.on('complete', function (results) {
         // Query completed successfully
         console.log("\nSuccessfully queried  chaincode function: request=%j, value=%s", queryRequest, results.result.toString());
@@ -1167,17 +1170,17 @@ function query(key, callback) {
         err2.message = "The Blockchain is too busy, please try again."
         callback(err2, null);
       });
-
-    }else{ // some other error, not the 'wake up' error
-    // Query failed
-    console.log("\nFailed to query chaincode, function: request=%j, error=%j", queryRequest, err);
-    err2 = new Error();
-    err2.code = 504;
-    err2.message = JSON.parse(err.msg)
-    callback(err2, null);
+      */
+    } else { // some other error, not the 'wake up' error
+      // Query failed
+      console.log("\nFailed to query chaincode, function: request=%j, error=%j", queryRequest, err);
+      err2 = new Error();
+      err2.code = 504;
+      err2.message = JSON.parse(err.msg)
+      callback(err2, null);
     }
   });
-  
+
 }
 
 
