@@ -44,8 +44,8 @@ var cloudantUsername = '254ec36f-02c6-43e4-99ea-b840f2404041-bluemix';
 var cloudantPassword = "8eae1d3dd1c3c4cc1b6e002c79e3ae18eaab2f328be5cad6ec9f0c2ab6421002";
 
 //Jose's personal DB
-//var cloudantUsername = '51e6380a-0c44-4b6d-80e0-5da36d316f50-bluemix';
-//var cloudantPassword = "f41f37308952bcc86cb775afcab54f5922eeb960a51799be82008b2d6f50c2d5";
+// var cloudantUsername = '51e6380a-0c44-4b6d-80e0-5da36d316f50-bluemix';
+// var cloudantPassword = "f41f37308952bcc86cb775afcab54f5922eeb960a51799be82008b2d6f50c2d5";
 
 var cloudant = Cloudant({ account: cloudantUsername, password: cloudantPassword });
 var blockvoteDB;
@@ -280,83 +280,80 @@ app.post('/addRegistrar', function (req, res) {
                 voteOptions = resp.electionData.voteOptions;
                 startDate = resp.electionData.electionStart;
                 endDate = resp.electionData.electionEnd;
+
+                var iskeyExpValid = true;
+                var currDate = new Date();
+                if (currDate > endDate || currDate < startDate) {
+                  err = new Error();
+                  err.code = 400;
+                  err.message = "The election is closed";
+                  console.log(err.message);
+                  res.send(JSON.stringify({ error: err, response: null }));
+                } else {
+                  if (!iskeyExpValid) { //ADD CRYPTO CHECK
+                    err = new Error();
+                    err.code = 400;
+                    err.message = registrarKeyModulus + " is not encoded properly";
+                    console.log(err.message);
+                    res.send(JSON.stringify({ error: err, response: null }));
+                  } else {
+                    chain.getUser("admin", function (err, user) {
+                      if (err) {
+                        err2 = new Error();
+                        err2.code = 500;
+                        err2.message = " Failed to register and enroll " + deployerName + ": " + err;
+                        res.send(JSON.stringify({ error: err2, response: null }));
+                      } else {
+                        userObj = user;
+                        //check if desired district exists!
+                        read("admin", registrarDistrict, function (err, readResp) {
+                          if (!readResp) {
+
+                            if (err.message.includes("No data exists for")) {
+                              err.message = registrarDistrict + " does not exist";
+                            }
+
+                            console.log(err.message);
+                            delete err.stack;
+                            res.send(JSON.stringify({ error: err, response: null }));
+                          }
+                          else {
+                            //check that this registrar hasn't already been registered
+                            read("admin", "registarInfo", function (err, readResp) {
+                              if (readResp && JSON.parse(readResp).hasOwnProperty(registrarName)) {
+                                err2 = new Error();
+                                err2.code = 500;
+                                err2.message = " The registrar " + registrarName + " is already registered ";
+                                delete err2.stack;
+                                res.send(JSON.stringify({ error: err2, response: null }));
+                              } else {
+                                //can now invoke, query, etc
+                                var args2 = [];
+                                args2.push(registrarName);
+                                args2.push(registrarKeyModulus);
+                                args2.push(registrarKeyExponent);
+                                args2.push(registrarDistrict);
+                                try {
+                                  invoke(args2, "writeRegistar", function (err, resp) {
+                                    res.send(JSON.stringify({ response: { code: 200, disclaimer: "This registration needs to be double checked" }, error: null }));
+                                  });
+                                } catch (err2) {
+                                  console.log("invoke threw an error in: add registrar");
+                                  err3 = new Error();
+                                  err3.code = 503;
+                                  err3.message = "Oops the blockchain is overloaded, please try again.";
+                                  callback(err3, null);
+                                }
+                              }
+                            });
+                          }
+                        });
+                      }
+                    });
+                  }
+                }
               }
             });
-            var iskeyExpValid = true;
-            var currDate = new Date();
-            if (currDate > endDate || currDate < startDate) {
-              err = new Error();
-              err.code = 400;
-              err.message = "The election is closed";
-              console.log(err.message);
-              res.send(JSON.stringify({ error: err, response: null }));
-            } else {
-              if (!iskeyExpValid) { //ADD CRYPTO CHECK
-                err = new Error();
-                err.code = 400;
-                err.message = registrarKeyModulus + " is not encoded properly";
-                console.log(err.message);
-                res.send(JSON.stringify({ error: err, response: null }));
-              } else {
-                chain.getUser("admin", function (err, user) {
-                  if (err) {
-                    err2 = new Error();
-                    err2.code = 500;
-                    err2.message = " Failed to register and enroll " + deployerName + ": " + err;
-                    res.send(JSON.stringify({ error: err2, response: null }));
-                  }
-                  userObj = user;
-
-                  //check if desired district exists!
-                  read("admin", registrarDistrict, function (err, readResp) {
-                    if (!readResp) {
-
-                      if (err.message.includes("No data exists for")) {
-                        err.message = registrarDistrict + " does not exist";
-                      }
-
-                      console.log(err.message);
-                      delete err.stack;
-                      res.send(JSON.stringify({ error: err, response: null }));
-                    }
-                    else {
-                      //check that this registrar hasn't already been registered
-                      read("admin", "registarInfo", function (err, readResp) {
-                        if (readResp && JSON.parse(readResp).hasOwnProperty(registrarName)) {
-                          err2 = new Error();
-                          err2.code = 500;
-                          err2.message = " The registrar " + registrarName + " is already registered ";
-                          delete err2.stack;
-                          res.send(JSON.stringify({ error: err2, response: null }));
-                        } else {
-
-                          //can now invoke, query, etc
-                          var args2 = [];
-                          args2.push(registrarName);
-                          args2.push(registrarKeyModulus);
-                          args2.push(registrarKeyExponent);
-                          args2.push(registrarDistrict);
-
-
-                          try {
-                            invoke(args2, "writeRegistar", function (err, resp) {
-                              res.send(JSON.stringify({ response: { code: 200, disclaimer: "This registration needs to be double checked" }, error: null }));
-                            });
-                          } catch (err2) {
-
-                            console.log("invoke threw an error in: add registrar");
-                            err3 = new Error();
-                            err3.code = 503;
-                            err3.message = "Oops the blockchain is overloaded, please try again.";
-                            callback(err3, null);
-                          }
-                        }
-                      });
-                    }
-                  });
-                });
-              }
-            }
           }
         } else {
           res.send("User is not admin");
@@ -395,81 +392,77 @@ app.post('/registerVoter', function (req, res) {
         voteOptions = resp.electionData.voteOptions;
         startDate = resp.electionData.electionStart;
         endDate = resp.electionData.electionEnd;
-      }
-    });
 
-    chain.getUser("admin", function (err, user) {
-      if (err) {
-        err2 = new Error();
-        err2.code = 500;
-        err2.message = " Failed to register and enroll admin: " + err;
-        res.send(JSON.stringify({ error: err2, response: null }));
-      }
-      userObj = user;
-      var currDate = new Date();
-      if (currDate > endDate || currDate < startDate) {
-        err = new Error();
-        err.code = 400;
-        err.message = "The election is closed";
-        console.log(err.message);
-        res.send(JSON.stringify({ error: err, response: null }));
-      } else {
-        //check if this person has already registered
-        read("admin", govID, function (err, readResp) {
-          if (readResp) {
+        chain.getUser("admin", function (err, user) {
+          if (err) {
             err2 = new Error();
-            err2.code = 400;
-            err2.message = "User with govID " + govID + " is already registered";
-            delete err2.stack;
-            console.log(err2.message);
+            err2.code = 500;
+            err2.message = " Failed to register and enroll admin: " + err;
             res.send(JSON.stringify({ error: err2, response: null }));
-          }
-          else {
-            //check if this registar is registered          
-            read("admin", "registarInfo", function (err, readResp) {
-              if (!readResp) {
-                err2 = new Error();
-                err2.code = 500;
-                err2.message = "There are no registrars registered";
-                delete err2.stack;
-                res.send(JSON.stringify({ error: err2, response: null }));
-              } else if (!JSON.parse(readResp).hasOwnProperty(registrarName)) {
-                err2 = new Error();
-                err2.code = 500;
-                err2.message = " The registrar " + registrarName + " is not registered ";
-                delete err2.stack;
-                res.send(JSON.stringify({ error: err2, response: null }));
-              } else {
-                var args2 = [];
-                args2.push(govID);
-                args2.push(registrarName);
-
-                try {
-                  invoke(args2, "register", function (err, resp) {
-                    res.send(JSON.stringify({ response: { code: 200, disclaimer: "This registration needs to be double checked" }, error: null }));
-                   });
-                } catch (err2) {
-
-                  console.log("invoke threw an error in: registerVoter");
-                  err3 = new Error();
-                  err3.code = 503;
-                  err3.message = "Oops the blockchain is overloaded, please try again.";
-                  callback(err3, null);
+          } else {
+            userObj = user;
+            var currDate = new Date();
+            if (currDate > endDate || currDate < startDate) {
+              err = new Error();
+              err.code = 400;
+              err.message = "The election is closed";
+              console.log(err.message);
+              res.send(JSON.stringify({ error: err, response: null }));
+            } else {
+              //check if this person has already registered
+              read("admin", govID, function (err, readResp) {
+                if (readResp) {
+                  err2 = new Error();
+                  err2.code = 400;
+                  err2.message = "User with govID " + govID + " is already registered";
+                  delete err2.stack;
+                  console.log(err2.message);
+                  res.send(JSON.stringify({ error: err2, response: null }));
                 }
-              }
-            });
+                else {
+                  //check if this registar is registered          
+                  read("admin", "registarInfo", function (err, readResp) {
+                    if (!readResp) {
+                      err2 = new Error();
+                      err2.code = 500;
+                      err2.message = "There are no registrars registered";
+                      delete err2.stack;
+                      res.send(JSON.stringify({ error: err2, response: null }));
+                    } else if (!JSON.parse(readResp).hasOwnProperty(registrarName)) {
+                      err2 = new Error();
+                      err2.code = 500;
+                      err2.message = " The registrar " + registrarName + " is not registered ";
+                      delete err2.stack;
+                      res.send(JSON.stringify({ error: err2, response: null }));
+                    } else {
+                      var args2 = [];
+                      args2.push(govID);
+                      args2.push(registrarName);
+                      try {
+                        invoke(args2, "register", function (err, resp) {
+                          res.send(JSON.stringify({ response: { code: 200, disclaimer: "This registration needs to be double checked" }, error: null }));
+                        });
+                      } catch (err2) {
+                        console.log("invoke threw an error in: registerVoter");
+                        err3 = new Error();
+                        err3.code = 503;
+                        err3.message = "Oops the blockchain is overloaded, please try again.";
+                        callback(err3, null);
+                      }
+                    }
+                  });
+                }
+              });
+            }
           }
         });
       }
     });
   }
-
-
 });
 
 
 //******************************************************************************************ROUTES-OPEN ROUTES
-
 app.post('/VoterRegRecord', function (req, res) {
   //REQUIRES:
   //POST username: govID of A registered voter
@@ -690,8 +683,6 @@ app.get('/getRegistrarInfo', function (req, res) {
 
 //locked by electon that has ended
 app.post('/writeVote', function (req, res) {
-  //sleep.usleep(Math.round(Math.random() * (1000000 - 50000) + 50000));
-
   res.setHeader('Content-Type', 'application/json');
   var signedTokenID = req.body.signedTokenID
   var signedTokenSig = req.body.signedTokenSig
@@ -719,102 +710,101 @@ app.post('/writeVote', function (req, res) {
         voteOptions = resp.electionData.voteOptions;
         startDate = resp.electionData.electionStart;
         endDate = resp.electionData.electionEnd;
+
+        var currDate = new Date();
+        if (currDate > endDate || currDate < startDate) {
+          err = new Error();
+          err.code = 400;
+          err.message = "The election is closed";
+          delete err.stack;
+          console.log(err.message);
+          res.send(JSON.stringify({ error: err, response: null }));
+        } else {
+          if (voteOptions.indexOf(vote) === -1) {
+            err = new Error();
+            err.code = 400;
+            err.message = vote + " is an invalid vote";
+            console.log(err.message);
+            res.send(JSON.stringify({ error: err, response: null }));
+          }
+          else {
+            chain.getUser("admin", function (err, user) {
+              if (err) {
+                err2 = new Error();
+                err2.code = 500;
+                err2.message = " Failed to register and enroll admin"
+                res.send(JSON.stringify({ error: err2, response: null }));
+              } else {
+                userObj = user;
+                //check if this registar is registered          
+                read("admin", "registarInfo", function (err, readResp) {
+                  if (!readResp) {
+                    err2 = new Error();
+                    err2.code = 500;
+                    err2.message = "There are no registrars registered";
+                    delete err2.stack;
+                    res.send(JSON.stringify({ error: err2, response: null }));
+                  } else if (!JSON.parse(readResp).hasOwnProperty(registrarName)) {
+                    err2 = new Error();
+                    err2.code = 500;
+                    err2.message = " The registrar " + registrarName + " is not registered ";
+                    delete err2.stack;
+                    res.send(JSON.stringify({ error: err2, response: null }));
+                  }
+                  else {
+                    //check if this person has already voted
+                    read("admin", signedTokenID + signedTokenSig, function (err, readResp) {
+                      if (readResp) { //record found
+                        err2 = new Error();
+                        err2.code = 500;
+                        err2.message = "user with signedToken" + signedTokenID + signedTokenSig + " has already voted"
+                        delete err2.stack;
+                        res.send(JSON.stringify({ error: err2, response: null }));
+                      }
+                      else { // no record found
+                        if (!err.message.includes("No data exists for")) { //read error apart from no document found
+                          res.send(JSON.stringify({ error: err, response: null }));
+                        } else {
+                          var CRYPTOVERIFIED = true
+                          if (!CRYPTOVERIFIED) {    //need actual crypto solution in nodeJS
+                            err2 = new Error();
+                            err2.code = 500;
+                            err2.message = "user with signedToken" + signedTokenID + signedTokenSig + " is not authorized to vote by " + registrarName
+                            delete err2.stack;
+                            res.send(JSON.stringify({ error: err2, response: null }));
+                          } else {
+                            //can now invoke, query, etc
+                            var args2 = [];
+                            args2.push(signedTokenID);
+                            args2.push(signedTokenSig);
+                            args2.push(vote);
+                            args2.push(registrarName);
+
+                            try {
+                              invoke(args2, "writeVote", function (err, resp) {
+                                res.send(JSON.stringify({ response: { code: 200, disclaimer: "This vote needs to be double checked" }, error: null }));
+                              });
+                            } catch (err2) {
+                              console.log("invoke threw an error in: writevote");
+                              err3 = new Error();
+                              err3.code = 503;
+                              err3.message = "Oops the blockchain is overloaded, please try again.";
+                              callback(err3, null);
+                            }
+                          }
+                        }
+                      }
+                    });
+                  }
+                });
+              }
+            });
+          }
+        }
+
       }
     });
-
-    var currDate = new Date();
-    if (currDate > endDate || currDate < startDate) {
-      err = new Error();
-      err.code = 400;
-      err.message = "The election is closed";
-      delete err.stack;
-      console.log(err.message);
-      res.send(JSON.stringify({ error: err, response: null }));
-    } else {
-      if (voteOptions.indexOf(vote) === -1) {
-        err = new Error();
-        err.code = 400;
-        err.message = vote + " is an invalid vote";
-        console.log(err.message);
-        res.send(JSON.stringify({ error: err, response: null }));
-      }
-      else {
-        chain.getUser("admin", function (err, user) {
-          if (err) {
-            err2 = new Error();
-            err2.code = 500;
-            err2.message = " Failed to register and enroll admin"
-            res.send(JSON.stringify({ error: err2, response: null }));
-          }
-          userObj = user;
-
-          //check if this registar is registered          
-          read("admin", "registarInfo", function (err, readResp) {
-            if (!readResp) {
-              err2 = new Error();
-              err2.code = 500;
-              err2.message = "There are no registrars registered";
-              delete err2.stack;
-              res.send(JSON.stringify({ error: err2, response: null }));
-            } else if (!JSON.parse(readResp).hasOwnProperty(registrarName)) {
-              err2 = new Error();
-              err2.code = 500;
-              err2.message = " The registrar " + registrarName + " is not registered ";
-              delete err2.stack;
-              res.send(JSON.stringify({ error: err2, response: null }));
-            }
-            else {
-              //check if this person has already voted
-              read("admin", signedTokenID + signedTokenSig, function (err, readResp) {
-                if (readResp) { //record found
-                  err2 = new Error();
-                  err2.code = 500;
-                  err2.message = "user with signedToken" + signedTokenID + signedTokenSig + " has already voted"
-                  delete err2.stack;
-                  res.send(JSON.stringify({ error: err2, response: null }));
-                }
-                else { // no record found
-                  if (!err.message.includes("No data exists for")) { //read error apart from no document found
-                    res.send(JSON.stringify({ error: err, response: null }));
-                  } else {
-                    var CRYPTOVERIFIED = true
-                    if (!CRYPTOVERIFIED) {    //need actual crypto solution in nodeJS
-                      err2 = new Error();
-                      err2.code = 500;
-                      err2.message = "user with signedToken" + signedTokenID + signedTokenSig + " is not authorized to vote by " + registrarName
-                      delete err2.stack;
-                      res.send(JSON.stringify({ error: err2, response: null }));
-                    } else {
-                      //can now invoke, query, etc
-                      var args2 = [];
-                      args2.push(signedTokenID);
-                      args2.push(signedTokenSig);
-                      args2.push(vote);
-                      args2.push(registrarName);
-
-
-                      try {
-                        invoke(args2, "writeVote", function (err, resp) {
-                          res.send(JSON.stringify({ response: { code: 200, disclaimer: "This vote needs to be double checked" }, error: null }));
-                         });
-                      } catch (err2) {
-                        console.log("invoke threw an error in: writevote");
-                        err3 = new Error();
-                        err3.code = 503;
-                        err3.message = "Oops the blockchain is overloaded, please try again.";
-                        callback(err3, null);
-                      }
-                    }
-                  }
-                }
-              });
-            }
-          });
-        });
-      }
-    }
   }
-
 });
 
 
@@ -988,13 +978,13 @@ function enrollAndRegisterUsers(callback) { //enrolls admin
         err.code = 500;
         err.message = " Failed to register and enroll " + newUserName + ": " + err;
         callback(err, null);
+      } else {
+        userObj = user;
+        //setting timers for fabric waits
+        chain.setDeployWaitTime(config.deployWaitTime);
+        console.log("\nDeploying chaincode ...");
+        deployChaincode(callback);    //DEPLOYMENT OF CHAINCODE
       }
-      userObj = user;
-
-      //setting timers for fabric waits
-      chain.setDeployWaitTime(config.deployWaitTime);
-      console.log("\nDeploying chaincode ...");
-      deployChaincode(callback);    //DEPLOYMENT OF CHAINCODE
     });
 
   });
