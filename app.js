@@ -1146,11 +1146,35 @@ function query(key, callback) {
     callback(null, results.result.toString());
   });
   queryTx.on('error', function (err) {
+
+    err = JSON.parse(err.msg)
+    if (err.Error.description === "Secure read failed") {
+      console.log("the typical wake up error happened. Trying again.")
+
+      var queryTx2 = userObj.query(queryRequest);
+
+      queryTx2.on('complete', function (results) {
+        // Query completed successfully
+        console.log("\nSuccessfully queried  chaincode function: request=%j, value=%s", queryRequest, results.result.toString());
+        callback(null, results.result.toString());
+      });
+
+      queryTx.on('error', function (err) {
+        // Query failed
+        console.log("\nFailed to query chaincode, function: request=%j, error=%j", queryRequest, err);
+        err2 = new Error();
+        err2.code = 504;
+        err2.message = "The Blockchain is too busy, please try again."
+        callback(err2, null);
+      });
+
+    }
+
     // Query failed
     console.log("\nFailed to query chaincode, function: request=%j, error=%j", queryRequest, err);
     err2 = new Error();
     err2.code = 504;
-    err2.message = err.msg;
+    err2.message = JSON.parse(err.msg)
     callback(err2, null);
   });
 }
