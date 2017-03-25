@@ -1147,15 +1147,13 @@ function query(key, callback) {
   });
   queryTx.on('error', function (err) {
 
-    err = JSON.parse(err.msg)
+    if (err.msg.indexOf("src/core/lib/iomgr/tcp_posix.c") !== -1) { // if it's the "wake up problem"
 
-    console.log(err);
+      console.log("the wake up problem has occurred, will try again")
 
-    if (err.Error.description === "Secure read failed") {
-      console.log("the typical wake up error happened. Trying again.")
-
-      /*
+      //trigger 2nd query
       var queryTx2 = userObj.query(queryRequest);
+
       queryTx2.on('complete', function (results) {
         // Query completed successfully
         console.log("\nSuccessfully queried  chaincode function: request=%j, value=%s", queryRequest, results.result.toString());
@@ -1164,19 +1162,19 @@ function query(key, callback) {
 
       queryTx2.on('error', function (err) {
         // Query failed
-        console.log("\nFailed to query chaincode, function: request=%j, error=%j", queryRequest, err);
+        console.log("\nFailed to query chaincode, error=%j", err);
         err2 = new Error();
         err2.code = 504;
-        err2.message = "The Blockchain is too busy, please try again."
+        err2.message = err.msg;
         callback(err2, null);
       });
-      */
-    } else { // some other error, not the 'wake up' error
+
+    } else {  //some other error
       // Query failed
-      console.log("\nFailed to query chaincode, function: request=%j, error=%j", queryRequest, err);
+      console.log("\nFailed to query chaincode, error=%j", err);
       err2 = new Error();
       err2.code = 504;
-      err2.message = JSON.parse(err.msg)
+      err2.message = err.msg;
       callback(err2, null);
     }
   });
