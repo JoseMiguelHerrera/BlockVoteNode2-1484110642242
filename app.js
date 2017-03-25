@@ -1159,7 +1159,7 @@ function query(key, callback) {
         callback(null, results.result.toString());
       });
 
-      queryTx.on('error', function (err) {
+      queryTx2.on('error', function (err) {
         // Query failed
         console.log("\nFailed to query chaincode, function: request=%j, error=%j", queryRequest, err);
         err2 = new Error();
@@ -1168,15 +1168,16 @@ function query(key, callback) {
         callback(err2, null);
       });
 
-    }
-
+    }else{ // some other error, not the 'wake up' error
     // Query failed
     console.log("\nFailed to query chaincode, function: request=%j, error=%j", queryRequest, err);
     err2 = new Error();
     err2.code = 504;
     err2.message = JSON.parse(err.msg)
     callback(err2, null);
+    }
   });
+  
 }
 
 
