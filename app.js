@@ -10,9 +10,6 @@ var auth0 = require('auth0-js');
 // cfenv provides access to your Cloud Foundry environment
 var cfenv = require('cfenv');
 
-var sleep = require('sleep');
-
-
 //allows Cross Origin Resource Sharing [only during testing phase, TO BE REMOVED] 
 var cors = require('cors')
 
@@ -32,22 +29,23 @@ var bodyParser = require('body-parser');
 app.use(bodyParser.json()); // support json encoded bodies
 app.use(bodyParser.urlencoded({ extended: true })); // support encoded bodies
 app.use(cors()) //enable CORS
-app.use(queue({ activeLimit: 1 })); //setting concurrency for each route to 1 to ENSURE it works.
+app.use(queue({ activeLimit: 1 })); //setting concurrency for each route to 1 to ENSURE it works (limitation of fabric 0.6)
 
 // get the app environment from Cloud Foundry
 var appEnv = cfenv.getAppEnv();
 
+//database variables
+var cloudant;
 var blockvoteDB;
+var cloudantUsername;
+var cloudantPassword;
 
-var authenticate = jwt({
-  secret: 'T7avxda1pkVo0GLcAnDY3tl3DBv1Z1CSCvrwqocQJHw1RPbWv0g1zha4X4HQ8S2t',
-  audience: 'f2pQL6jMgGQLDsNlHfhQgsmMVGzMcgmg'
-});
-
-var webAuth = new auth0.WebAuth({
-  domain: 'enel500blockvote.auth0.com',
-  clientID: 'f2pQL6jMgGQLDsNlHfhQgsmMVGzMcgmg'
-});
+//auth0 varialbles
+var auth0Domain;
+var auth0ClientSecret;
+var auth0ClientID;
+var authenticate;
+var webAuth;
 
 app.use('/init', authenticate);
 app.use('/addRegistrar', authenticate);
@@ -65,18 +63,31 @@ if (process.env.VCAP_APPLICATION) {
   }
 }
 if (process.env.VCAP_SERVICES) {
-  console.log('This app is running in Bluemix.');
+  console.log('This app is running on Bluemix.');
 
-  if (process.env.cloudantUsername && process.env.cloudantUsername) {
-    console.log("Cloudant credentials detected in environment varaibles")
-    var cloudantUsername = process.env.cloudantUsername;
-    var cloudantPassword = process.env.cloudantPassword;
+  if (process.env.cloudantUsername && process.env.cloudantUsername && process.env.auth0Domain && process.env.auth0ClientSecret && process.env.auth0ClientID) {
+    console.log("Cloudant and auth0 credentials detected in environment varaibles")
+    cloudantUsername = process.env.cloudantUsername;
+    cloudantPassword = process.env.cloudantPassword;
+    auth0Domain = process.env.auth0Domain;
+    auth0ClientSecret = process.env.auth0ClientSecret;
+    auth0ClientID = process.env.auth0ClientID;
 
-    var cloudant = Cloudant({ account: cloudantUsername, password: cloudantPassword });
+    authenticate = jwt({
+      secret: auth0ClientSecret,
+      audience: auth0ClientID
+    });
+
+    webAuth = new auth0.WebAuth({
+      domain: auth0Domain,
+      clientID: auth0ClientID
+    });
+
+    cloudant = Cloudant({ account: cloudantUsername, password: cloudantPassword });
 
   }
   else {
-    console.error("Please input the cloudant credentials into the environment varaibles as cloudantUsername and cloudantPassword ")
+    console.error("Please input the cloudant and auth0 credentials into the environment varaibles as cloudantUsername, cloudantPassword, auth0Domain, auth0ClientSecret, and auth0ClientID")
     process.exit(-1);
 
   }
@@ -90,13 +101,27 @@ if (process.env.VCAP_SERVICES) {
 } else {
   console.log('Assuming this app is running on localhost.');
 
-  if (process.argv.length != 4) {
-    console.error("Please input the cloudant credentials as CLI arguments: node app.js <cloudantUsername> <cloudantPassword> ")
+  if (process.argv.length != 7) {
+    console.error("Please input the cloudant credentials as CLI arguments: node app.js <cloudantUsername> <cloudantPassword> <auth0Domain> <auth0ClientSecret> <auth0ClientID>")
     process.exit(-1);
   } else {
-    var cloudantUsername = process.argv[2];
-    var cloudantPassword = process.argv[3];
-    var cloudant = Cloudant({ account: cloudantUsername, password: cloudantPassword });
+    cloudantUsername = process.argv[2];
+    cloudantPassword = process.argv[3];
+    auth0Domain = process.argv[4];
+    auth0ClientSecret = process.argv[5];
+    auth0ClientID = process.argv[6];
+
+    cloudant = Cloudant({ account: cloudantUsername, password: cloudantPassword });
+
+    authenticate = jwt({
+      secret: auth0ClientSecret,
+      audience: auth0ClientID
+    });
+
+    webAuth = new auth0.WebAuth({
+      domain: auth0Domain,
+      clientID: auth0ClientID
+    });
 
   }
 
@@ -500,7 +525,6 @@ app.post('/readDistrict', function (req, res) {
   POST district: name of district you want to get information about
   PROMISES: data about the district, if valid
   */
-  //sleep.usleep(Math.round(Math.random() * (2000000 - 100000) + 100000));
   res.setHeader('Content-Type', 'application/json');
   var district = req.body.district;
   function readDistrictCallback(err, readRes) {
@@ -557,7 +581,6 @@ app.post('/readVote', function (req, res) {
   /*REQUIRES: a signedToken ID and and signedToken Signature for a voter that has already voted
   PROMISES: if a vote has been registered with the signedToken, the vote will be returned.
   */
-  //sleep.usleep(Math.round(Math.random() * (1000000 - 50000) + 50000));
   res.setHeader('Content-Type', 'application/json');
   var signedTokenID = req.body.signedTokenID
   var signedTokenSig = req.body.signedTokenSig
@@ -601,7 +624,6 @@ app.get('/results', function (req, res) {
 
   //REQUIRES: for an election to have been deployed from the config file
   //PROMISES: get overall results of election, plus number of districts and the name of the eleciton
-  //sleep.usleep(Math.round(Math.random() * (1000000 - 50000) + 50000));
 
   res.setHeader('Content-Type', 'application/json');
   function resultReadCallback(err, readRes) {
@@ -650,16 +672,11 @@ app.get('/results', function (req, res) {
           resultReadCallback(err, readRes);
         });
       }
-
-
-
-
     }
   });
 });
 
 app.get('/getRegistrarInfo', function (req, res) {
-  //sleep.usleep(Math.round(Math.random() * (1000000 - 50000) + 50000));
 
   //REQUIRES: for an election to have been deployed from the config file
   //PROMISES: get information about the registrars in the system

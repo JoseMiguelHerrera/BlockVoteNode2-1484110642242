@@ -15,8 +15,7 @@
     "express-jwt": "5.1.0",
     "express-queue": "0.0.5",
     "hfc": "0.6.5",
-    "memwatch-next": "^0.3.0",
-    "sleep": "^5.1.0"
+    "memwatch-next": "^0.3.0"
   },
   "repository": {},
   "engines": {
