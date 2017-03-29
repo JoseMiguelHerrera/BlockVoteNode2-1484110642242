@@ -69,8 +69,8 @@ if (process.env.VCAP_SERVICES) {
 
   if (process.env.cloudantUsername && process.env.cloudantUsername) {
     console.log("Cloudant credentials detected in environment varaibles")
-    var cloudantUsername = JSON.parse(process.env.cloudantUsername);
-    var cloudantPassword = JSON.parse(process.env.cloudantPassword);
+    var cloudantUsername = process.env.cloudantUsername;
+    var cloudantPassword = process.env.cloudantPassword;
 
     var cloudant = Cloudant({ account: cloudantUsername, password: cloudantPassword });
 
