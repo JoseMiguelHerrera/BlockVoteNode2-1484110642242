@@ -37,17 +37,6 @@ app.use(queue({ activeLimit: 1 })); //setting concurrency for each route to 1 to
 // get the app environment from Cloud Foundry
 var appEnv = cfenv.getAppEnv();
 
-
-//production DB
-//This needs to be moved to environment variables
-var cloudantUsername = '254ec36f-02c6-43e4-99ea-b840f2404041-bluemix';
-var cloudantPassword = "8eae1d3dd1c3c4cc1b6e002c79e3ae18eaab2f328be5cad6ec9f0c2ab6421002";
-
-//Jose's personal DB
-// var cloudantUsername = '51e6380a-0c44-4b6d-80e0-5da36d316f50-bluemix';
-// var cloudantPassword = "f41f37308952bcc86cb775afcab54f5922eeb960a51799be82008b2d6f50c2d5";
-
-var cloudant = Cloudant({ account: cloudantUsername, password: cloudantPassword });
 var blockvoteDB;
 
 var authenticate = jwt({
@@ -77,6 +66,21 @@ if (process.env.VCAP_APPLICATION) {
 }
 if (process.env.VCAP_SERVICES) {
   console.log('This app is running in Bluemix.');
+
+  if (process.env.cloudantUsername && process.env.cloudantUsername) {
+    console.log("Cloudant credentials detected in environment varaibles")
+    var cloudantUsername = JSON.parse(process.env.cloudantUsername);
+    var cloudantPassword = JSON.parse(process.env.cloudantPassword);
+
+    var cloudant = Cloudant({ account: cloudantUsername, password: cloudantPassword });
+
+  }
+  else {
+    console.error("Please input the cloudant credentials into the environment varaibles as cloudantUsername and cloudantPassword ")
+    process.exit(-1);
+
+  }
+
   exports.SERVER = {
     HOST: process.env.VCAP_APP_HOST || '0.0.0.0',
     PORT: process.env.VCAP_APP_PORT || process.env.PORT,
@@ -85,6 +89,17 @@ if (process.env.VCAP_SERVICES) {
   };
 } else {
   console.log('Assuming this app is running on localhost.');
+
+  if (process.argv.length != 4) {
+    console.error("Please input the cloudant credentials as CLI arguments: node app.js <cloudantUsername> <cloudantPassword> ")
+    process.exit(-1);
+  } else {
+    var cloudantUsername = process.argv[2];
+    var cloudantPassword = process.argv[3];
+    var cloudant = Cloudant({ account: cloudantUsername, password: cloudantPassword });
+
+  }
+
   exports.SERVER = {
     HOST: 'localhost',
     PORT: 3000,
@@ -102,9 +117,6 @@ if (process.env.VCAP_SERVICES) {
 }
 exports.SERVER.vcap_app = vcap_app;
 exports.DEBUG = vcap_app;
-
-
-
 
 // start server on the specified port and binding host
 var port = process.env.PORT || process.env.VCAP_APP_PORT || 3000;

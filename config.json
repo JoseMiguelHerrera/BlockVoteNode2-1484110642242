@@ -2,7 +2,7 @@
     "chainName": "Favourite TV Shows",
     "electionQuestion": "What is your Favourite TV show?",
     "electionFlagURL": "http://i.imgur.com/xNUD3M0.jpg",
-    "districtAlias": "Age Group",
+    "districtAlias": "Academic Background",
     "deployWaitTime": "60",
     "user": {
         "username": "Other User Who Is Not Doing Anything",
