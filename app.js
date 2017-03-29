@@ -47,11 +47,6 @@ var auth0ClientID;
 var authenticate;
 var webAuth;
 
-app.use('/init', authenticate);
-app.use('/addRegistrar', authenticate);
-app.use('/registerVoter', authenticate);
-
-
 var vcap_app = { application_uris: [''] };
 var ext_uri = '';
 if (process.env.VCAP_APPLICATION) {
@@ -217,6 +212,13 @@ createDataBase(function (err, resp) {
       console.log("blockvote db created, ready to use")
   }
 });
+
+
+app.use('/init', authenticate);
+app.use('/addRegistrar', authenticate);
+app.use('/registerVoter', authenticate);
+
+
 
 app.get('/authping', function (req, res) {
   res.status(200).send("Server responding to ping");
