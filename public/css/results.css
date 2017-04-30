@@ -1,0 +1,43 @@
+
+   /* body {
+        font: 10px sans-serif;
+    }*/
+	/*
+    #totalResults > .dataDiv > svg  {
+        /*margin: 10px 0 0 10px;
+		display: block;
+		margin: auto;
+    }*/
+	
+	#totalResults, #districtResultCharts{
+		margin-bottom: 2em; 
+	}
+	
+	
+	.voteCounts{
+		fill: black;
+		
+	}
+	/*
+	svg{
+		display:block;
+		margin:auto;
+	}*/
+	#districtResultCharts > svg{
+		margin: 10px 0 0 10px;
+	}
+
+    .arc {
+        stroke: #fff;
+    }
+	
+    .tooltip{
+		background-color: white;
+		color: black;
+		border-radius: 10px;
+		padding: 10px;
+    }
+/*
+	#resultsSection{
+		position: static;
+	}*/

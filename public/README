@@ -1,0 +1,9 @@
+Notes
+- use liverelod to automatically reload the webpage.
+	Steps:
+		- type 'npm install' in your console to install gulp and gulp-livereload 
+		- download the livereload plugin: https://chrome.google.com/webstore/detail/livereload/jnihajbhpnppcggbcgedagnkighmdlei
+		- type 'gulp watch' in your console
+		- Go to the website, and enable livereload by clicking the livereload somewhere in your browser.
+		- ctrl - S from any of index.html, *.js, *.css and the page will reload automatically.
+

@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<!--[if IE 8 ]><html class="no-js oldie ie8" lang="en"> <![endif]-->
+<!--[if IE 9 ]><html class="no-js oldie ie9" lang="en"> <![endif]-->
+<!--[if (gte IE 9)|!(IE)]><!-->
+<html class="no-js" lang="en">
+<!--<![endif]-->
+
+<head>
+    <!--- basic page needs
+    ================================================== -->
+    <meta charset="utf-8">
+    <title>BlockVote</title>
+    <meta name="description" content="">
+    <meta name="author" content="">
+    <!-- mobile specific metas
+    ================================================== -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <!-- CSS
+    ================================================== -->
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/vendor.css">
+    <link rel="stylesheet" href="css/normalize.css"> 
+	<link rel="stylesheet" href="css/results.css">
+    <!-- script
+    ================================================== -->
+    <script src="js/modernizr.js"></script>
+    <script src="https://d3js.org/d3.v4.min.js"></script>
+    <!-- favicons
+     ================================================== -->
+    <link rel="icon" type="image/png" href="favicon.png">
+
+</head>
+<body>
+<header>
+        <div class="row">
+            <div class="logo">
+                <a href="index.html">BlockVote</a>
+            </div>
+            <nav id="main-nav-wrap">
+                <ul class="main-navigation">
+                    <li class="current"><a href="index.html#intro" title="">Home</a></li>
+                    <li><a  href="index.html#process" title="">Process</a></li>
+                    <li><a  href="index.html#features" title="">Features</a></li>
+                    <li><a  href="resultsPage.html#pricing" title="">Results</a></li>
+                    <li><a  href="index.html#faq" title="">FAQ</a></li>
+                </ul>
+            </nav>
+            <a class="menu-toggle" href="#"><span>Menu</span></a>
+        </div>
+</header>
+<section id="pricing">
+        <div class="row section-intro" style = "position:static">
+            <div class="col-twelve with-bottom-line">
+                <h1>Live Results:</h1>
+                <h5></h5>
+            </div>
+            <div class="row section-intro">
+            </div>
+			
+			<!-- div for results -->
+			<div id="resultsSection"></div>
+            <!--<h5>Total Results</h5>        
+            <div id="totalResults"></div>
+            
+
+            <h5>Per District Results</h5>
+			<div id="districtResultCharts"></div>
+			
+			<h5>Vote Counts Per District</h5>
+			<div id="bubbleChart"><svg width= "400" height="400" font-family="sans-serif" font-size="10" text-anchor="middle"></svg></div>-->
+
+        </div>
+        <div class="row pricing-content">
+            <div class="pricing-tables block-1-4 group">
+                <div class="bgrid">
+                    <div class="price-block">
+                    </div>
+                </div>
+                <!-- /price-block -->
+                <div class="bgrid">
+                    <div class="price-block primary">
+                    </div>
+                </div>
+                <!-- /price-block -->
+                <div class="bgrid">
+                    <div class="price-block">
+                    </div>
+                </div>
+                <!-- /price-block -->
+                <div class="bgrid">
+                </div>
+                <!-- /price-block -->
+            </div>
+            <!-- /pricing-tables -->
+        </div>
+        <!-- /pricing-content -->
+    </section>	
+	<!-- footer
+    ================================================== -->
+    <footer>
+        <div class="footer-main">
+            <div class="row">
+                <div class="col-two tab-1-3 mob-1-2 social-links">
+                    <div class="footer-logo"></div>
+                    <p>
+                        2500 University Dr NW
+                        <br> Calgary, AB, T2N 1N4
+                        <br>
+                    </p>
+                </div>
+                <!-- /footer-info -->
+            </div>
+            <!-- /row -->
+        </div>
+        <!-- /footer-main -->
+        <div class="footer-bottom">
+            <div class="row">
+                <div class="col-twelve">
+                    <div class="copyright">
+                        <span>© Copyright Lhander 2016.</span>
+                        <span>Design by <a href="http://www.styleshout.com/">styleshout</a></span>
+                    </div>
+                    <!--<div id="go-top" style="display: block;">
+                        <a class="smoothscroll" title="Back to Top" href="#top"><i class="icon ion-android-arrow-up"></i></a>
+                    </div>-->
+                </div>
+            </div>
+            <!-- /footer-bottom -->
+        </div>
+    </footer>
+    <div id="preloader">
+        <div id="loader"></div>
+    </div>
+<script src="js/jquery-1.11.3.min.js"></script>
+<script src="js/jquery-migrate-1.2.1.min.js"></script>
+<script src="js/plugins.js"></script>
+<script src="js/main.js"></script>
+<script src="js/results.js"></script>
