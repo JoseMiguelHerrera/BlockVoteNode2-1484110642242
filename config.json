@@ -12,7 +12,7 @@
         "chaincodePath": "chaincode",
         "functionName": "init",
         "args": [
-            "Favourite TV Shows",
+            "Alberta Conservative Party Elections",
             "6",
             "Calgary",
             "Edmonton",
