@@ -21,10 +21,22 @@
     <link rel="stylesheet" href="css/main.css">
     <link rel="stylesheet" href="css/vendor.css">
     <link rel="stylesheet" href="css/normalize.css">
-	<link rel="stylesheet" href="css/results.css">
+    <link rel="stylesheet" href="css/results.css">
     <!-- script
     ================================================== -->
     <script src="js/modernizr.js"></script>
+    <script>
+        (function (i, s, o, g, r, a, m) {
+        i['GoogleAnalyticsObject'] = r; i[r] = i[r] || function () {
+            (i[r].q = i[r].q || []).push(arguments)
+        }, i[r].l = 1 * new Date(); a = s.createElement(o),
+            m = s.getElementsByTagName(o)[0]; a.async = 1; a.src = g; m.parentNode.insertBefore(a, m)
+        })(window, document, 'script', 'https://www.google-analytics.com/analytics.js', 'ga');
+
+        ga('create', 'UA-100585385-1', 'auto');
+        ga('send', 'pageview');
+
+    </script>
     <script src="https://d3js.org/d3.v4.min.js"></script>
     <!-- favicons
      ================================================== -->
@@ -32,171 +44,177 @@
     <script type='text/javascript' src='https://www.gstatic.com/charts/loader.js'></script>
     <script type='text/javascript'>
         var mykey = "AIzaSyByN_-mElAYg03SU-qdOT62iOxhC5Yeos8";
-     google.charts.load('upcoming', {'packages': ['geochart', 'corechart'], mapsApiKey: mykey});
-     google.charts.setOnLoadCallback(drawMarkersMap);
+        google.charts.load('upcoming', { 'packages': ['geochart', 'corechart'], mapsApiKey: mykey });
+        google.charts.setOnLoadCallback(drawMarkersMap);
 
 
-     var edin_pop = 495360;
-     var glasgow_pop = 598830;
-     var aberdeen_pop = 228990;
-     var Dundee_pop = 148210;
+        var edin_pop = 495360;
+        var glasgow_pop = 598830;
+        var aberdeen_pop = 228990;
+        var Dundee_pop = 148210;
 
-     var edin = {
-        'yes': .40*edin_pop,
-        'no': .50*edin_pop,
-        'maybe': .10*edin_pop
-     }
+        var edin = {
+            'yes': .40 * edin_pop,
+            'no': .50 * edin_pop,
+            'maybe': .10 * edin_pop
+        }
 
-     var glasg = {
-        'yes': .70*glasgow_pop,
-        'no': .20*glasgow_pop,
-        'maybe': .10*glasgow_pop
-     }
+        var glasg = {
+            'yes': .70 * glasgow_pop,
+            'no': .20 * glasgow_pop,
+            'maybe': .10 * glasgow_pop
+        }
 
-     var aber = {
-        'yes': .20*aberdeen_pop,
-        'no': .75*aberdeen_pop,
-        'maybe': .5*aberdeen_pop
-     }
+        var aber = {
+            'yes': .20 * aberdeen_pop,
+            'no': .75 * aberdeen_pop,
+            'maybe': .5 * aberdeen_pop
+        }
 
-      var dun = {
-        'yes': .45*Dundee_pop,
-        'no': .45*Dundee_pop,
-        'maybe': .90*Dundee_pop
-     }
-
-
-      function drawMarkersMap() {
-      var data = google.visualization.arrayToDataTable([
-        ['City',   'No', 'Yes'],
-        ['Edinburgh',      edin['no'],    edin['yes']],
-        ['Glasgow',      glasg['no'],    glasg['yes']],
-        ['Aberdeen',    aber['no'],    aber['yes']],
-        ['Dundee',      dun['no'],    dun['yes']]
-      ]);
-
-      var options = {
-        region: 'GB',
-        displayMode: 'markers',
-        colorAxis: {colors: ['green', 'blue']}
-      };
-
-      var chart = new google.visualization.GeoChart(document.getElementById('chart_div'));
-      chart.draw(data, options);
-
-// Total pie chart 
-        var data = new google.visualization.DataTable();
-        data.addColumn('string', 'choice');
-        data.addColumn('number', 'votes');
-        data.addRows([
-          ['Yes', edin['yes']+ glasg['yes'] + aber['yes'] + dun['yes'] ],
-          ['No', edin['no']+ glasg['no'] + aber['no'] + dun['no']],
-          ['Maybe', edin['maybe']+ glasg['maybe'] + aber['maybe'] + dun['maybe']]
-        ]);
-
-        // Set chart options
-        var options = {'title':'Total Results',
-                       'width':400,
-                       'height':300};
-
-        // Instantiate and draw our chart, passing in some options.
-        var chart = new google.visualization.PieChart(document.getElementById('chart_totals'));
-        chart.draw(data, options);
+        var dun = {
+            'yes': .45 * Dundee_pop,
+            'no': .45 * Dundee_pop,
+            'maybe': .90 * Dundee_pop
+        }
 
 
+        function drawMarkersMap() {
+            var data = google.visualization.arrayToDataTable([
+                ['City', 'No', 'Yes'],
+                ['Edinburgh', edin['no'], edin['yes']],
+                ['Glasgow', glasg['no'], glasg['yes']],
+                ['Aberdeen', aber['no'], aber['yes']],
+                ['Dundee', dun['no'], dun['yes']]
+            ]);
 
+            var options = {
+                region: 'GB',
+                displayMode: 'markers',
+                colorAxis: { colors: ['green', 'blue'] }
+            };
 
-// Edinburgh pie chart 
-        var data = new google.visualization.DataTable();
-        data.addColumn('string', 'choice');
-        data.addColumn('number', 'votes');
-        data.addRows([
-          ['Yes', edin['yes']],
-          ['No', edin['no']],
-          ['Maybe', edin['maybe']]
-        ]);
+            var chart = new google.visualization.GeoChart(document.getElementById('chart_div'));
+            chart.draw(data, options);
 
-        // Set chart options
-        var options = {'title':'Edinburgh Results',
-                       'width':400,
-                       'height':300};
+            // Total pie chart 
+            var data = new google.visualization.DataTable();
+            data.addColumn('string', 'choice');
+            data.addColumn('number', 'votes');
+            data.addRows([
+                ['Yes', edin['yes'] + glasg['yes'] + aber['yes'] + dun['yes']],
+                ['No', edin['no'] + glasg['no'] + aber['no'] + dun['no']],
+                ['Maybe', edin['maybe'] + glasg['maybe'] + aber['maybe'] + dun['maybe']]
+            ]);
 
-        // Instantiate and draw our chart, passing in some options.
-        var chart = new google.visualization.PieChart(document.getElementById('chart_edinburgh'));
-        chart.draw(data, options);
+            // Set chart options
+            var options = {                
+'title': 'Total Results',
+                'width': 400,
+                'height': 300            
+};
 
-// Glasgow pie chart 
-        var data = new google.visualization.DataTable();
-        data.addColumn('string', 'choice');
-        data.addColumn('number', 'votes');
-        data.addRows([
-          ['Yes', glasg['yes']],
-          ['No', glasg['no']],
-          ['Maybe', glasg['maybe']]
-        ]);
-
-        // Set chart options
-        var options = {'title':'Glasgow Results',
-                       'width':400,
-                       'height':300};
-
-        // Instantiate and draw our chart, passing in some options.
-        var chart = new google.visualization.PieChart(document.getElementById('chart_glasgow'));
-        chart.draw(data, options);
-
-// Aberdeen pie chart 
-        var data = new google.visualization.DataTable();
-        data.addColumn('string', 'choice');
-        data.addColumn('number', 'votes');
-        data.addRows([
-          ['Yes', aber['yes']],
-          ['No', aber['no']],
-          ['Maybe', aber['maybe']]
-        ]);
-
-        // Set chart options
-        var options = {'title':'Aberdeen Results',
-                       'width':400,
-                       'height':300};
-
-        // Instantiate and draw our chart, passing in some options.
-        var chart = new google.visualization.PieChart(document.getElementById('chart_aberdeen'));
-        chart.draw(data, options);
-
-// Dundee pie chart 
-        var data = new google.visualization.DataTable();
-        data.addColumn('string', 'choice');
-        data.addColumn('number', 'votes');
-        data.addRows([
-          ['Yes', dun['yes']],
-          ['No', dun['no']],
-          ['Maybe', dun['maybe']]
-        ]);
-
-        // Set chart options
-        var options = {'title':'Dundee Results',
-                       'width':400,
-                       'height':300};
-
-        // Instantiate and draw our chart, passing in some options.
-        var chart = new google.visualization.PieChart(document.getElementById('chart_dundee'));
-        chart.draw(data, options);
+            // Instantiate and draw our chart, passing in some options.
+            var chart = new google.visualization.PieChart(document.getElementById('chart_totals'));
+            chart.draw(data, options);
 
 
 
 
-    };
+            // Edinburgh pie chart 
+            var data = new google.visualization.DataTable();
+            data.addColumn('string', 'choice');
+            data.addColumn('number', 'votes');
+            data.addRows([
+                ['Yes', edin['yes']],
+                ['No', edin['no']],
+                ['Maybe', edin['maybe']]
+            ]);
+
+            // Set chart options
+            var options = {
+                'title': 'Edinburgh Results',
+                'width': 400,
+                'height': 300
+            };
+
+            // Instantiate and draw our chart, passing in some options.
+            var chart = new google.visualization.PieChart(document.getElementById('chart_edinburgh'));
+            chart.draw(data, options);
+
+            // Glasgow pie chart 
+            var data = new google.visualization.DataTable();
+            data.addColumn('string', 'choice');
+            data.addColumn('number', 'votes');
+            data.addRows([
+                ['Yes', glasg['yes']],
+                ['No', glasg['no']],
+                ['Maybe', glasg['maybe']]
+            ]);
+
+            // Set chart options
+            var options = {
+                'title': 'Glasgow Results',
+                'width': 400,
+                'height': 300            
+};
+
+            // Instantiate and draw our chart, passing in some options.
+            var chart = new google.visualization.PieChart(document.getElementById('chart_glasgow'));
+            chart.draw(data, options);
+
+            // Aberdeen pie chart 
+            var data = new google.visualization.DataTable();
+            data.addColumn('string', 'choice');
+            data.addColumn('number', 'votes');
+            data.addRows([
+                ['Yes', aber['yes']],
+                ['No', aber['no']],
+                ['Maybe', aber['maybe']]
+            ]);
+
+            // Set chart options
+            var options = {                
+'title': 'Aberdeen Results',
+                'width': 400,
+                'height': 300            
+};
+
+            // Instantiate and draw our chart, passing in some options.
+            var chart = new google.visualization.PieChart(document.getElementById('chart_aberdeen'));
+            chart.draw(data, options);
+
+            // Dundee pie chart 
+            var data = new google.visualization.DataTable();
+            data.addColumn('string', 'choice');
+            data.addColumn('number', 'votes');
+            data.addRows([
+                ['Yes', dun['yes']],
+                ['No', dun['no']],
+                ['Maybe', dun['maybe']]
+            ]);
+
+            // Set chart options
+            var options = {                
+'title': 'Dundee Results',
+                'width': 400,
+                'height': 300            
+};
+
+            // Instantiate and draw our chart, passing in some options.
+            var chart = new google.visualization.PieChart(document.getElementById('chart_dundee'));
+            chart.draw(data, options);
 
 
+
+
+        };
     </script>
 
 
     <style media="screen" type="text/css">
-
-    .google_chart{
-        padding-bottom: 60px;
-    }
-
+        .google_chart {
+            padding-bottom: 60px;
+        }
     </style>
 </head>
 
@@ -213,7 +231,7 @@
                     <li class="current"><a class="smoothscroll" href="#intro" title="">Home</a></li>
                     <li><a class="smoothscroll" href="#process" title="">Process</a></li>
                     <li><a class="smoothscroll" href="#features" title="">Features</a></li>
-                    <li><a class = "smoothscroll" href="#pricing" title="">Results</a></li>
+                    <li><a class="smoothscroll" href="#pricing" title="">Results</a></li>
                     <li><a class="smoothscroll" href="#faq" title="">FAQ</a></li>
                 </ul>
             </nav>
@@ -242,7 +260,8 @@
         ========================================================= -->
         <div id="video-popup" class="popup-modal mfp-hide">
             <div class="fluid-video-wrapper">
-                <iframe src="http://player.vimeo.com/video/14592941?title=0&amp;byline=0&amp;portrait=0&amp;color=faec09" width="500" height="281" frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen></iframe>
+                <iframe src="http://player.vimeo.com/video/14592941?title=0&amp;byline=0&amp;portrait=0&amp;color=faec09" width="500" height="281"
+                    frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen></iframe>
             </div>
             <a class="close-popup">Close</a>
         </div>
@@ -256,7 +275,8 @@
             <div class="col-twelve with-bottom-line">
                 <h5>Process</h5>
                 <h1>How it works?</h1>
-                <p class="lead">Blockvote is an online voting platform that allows for secure, annonymous and verifiable online voting using the power of IBM's Bluemix Blockchain technology.</p>
+                <p class="lead">Blockvote is an online voting platform that allows for secure, annonymous and verifiable online voting using
+                    the power of IBM's Bluemix Blockchain technology.</p>
             </div>
         </div>
         <div class="row process-content">
@@ -267,7 +287,8 @@
                 </div>
                 <div class="item" data-item="2">
                     <h5>Register</h5>
-                    <p>Bring your phone and government identification to a local polling station. Meet with a registrar to receive to get permission to vote in the election.</p>
+                    <p>Bring your phone and government identification to a local polling station. Meet with a registrar to receive
+                        to get permission to vote in the election.</p>
                 </div>
             </div>
             <!-- /left-side -->
@@ -304,7 +325,8 @@
                     <div class="service-content">
                         <h3 class="h05">Secure</h3>
                         <p>
-                            Blockvote uses the latest web technologies to ensure that an election is completed securely. Only voters approved by a registrar can vote, and using the power of the blockchain, no one can change a vote after it is cast.
+                            Blockvote uses the latest web technologies to ensure that an election is completed securely. Only voters approved by a registrar
+                            can vote, and using the power of the blockchain, no one can change a vote after it is cast.
                         </p>
                     </div>
                 </div>
@@ -314,7 +336,8 @@
                     <div class="service-content">
                         <h3 class="h05">Anonymous</h3>
                         <p>
-                            Using powerful cryptographic techniques, a vote can never be tied back to the person who cast it. All votes are completely anonymous.
+                            Using powerful cryptographic techniques, a vote can never be tied back to the person who cast it. All votes are completely
+                            anonymous.
                         </p>
                     </div>
                 </div>
@@ -324,7 +347,8 @@
                     <div class="service-content">
                         <h3 class="h05">verifiable</h3>
                         <p>
-                            All voting information is recorded on the Blockchain and can be audited later. The record is impossible to modify and contains every piece of information necessary to ensure the results of an election are honest.
+                            All voting information is recorded on the Blockchain and can be audited later. The record is impossible to modify and contains
+                            every piece of information necessary to ensure the results of an election are honest.
                         </p>
                     </div>
                 </div>
@@ -338,7 +362,7 @@
     <!-- pricing
     ================================================== -->
     <section id="pricing">
-        <div class="row section-intro" style = "position:static">
+        <div class="row section-intro" style="position:static">
             <div class="col-twelve with-bottom-line">
                 <h1>Live Results:</h1>
                 <h2 id="electionQuestion"></h2>
@@ -346,11 +370,11 @@
             </div>
             <div class="row section-intro">
             </div>
-			
-			<!-- div for results -->
-			<div id="resultsSection"></div>
-			
-			
+
+            <!-- div for results -->
+            <div id="resultsSection"></div>
+
+
             <!-- map -->
             <!--<h5>Total Results</h5>        
             <div id="chart_div" class="google_chart" style="width: 500px; height: 200px;"></div>
@@ -409,15 +433,20 @@
                 </div>
                 <div class="bgrid">
                     <h3>What’s a Blockchain?</h3>
-                    <p> A blockchain is a distributed database where every node has an entire copy of the data set, and all change history is recorded. Each node helps establish the world state of the database using a consensus algorithm, adding data to blocks. Each block is cryptographically connected to the last one</p>
+                    <p> A blockchain is a distributed database where every node has an entire copy of the data set, and all change
+                        history is recorded. Each node helps establish the world state of the database using a consensus
+                        algorithm, adding data to blocks. Each block is cryptographically connected to the last one</p>
                 </div>
                 <div class="bgrid">
                     <h3>What's Bluemix?</h3>
-                    <p>IBM's online cloud platform as a service. It enables users to quickly create, deploy and manage cloud based applications. It also offers a catalog of services from IBM and other companies which include the IBM Blockchain.</p>
+                    <p>IBM's online cloud platform as a service. It enables users to quickly create, deploy and manage cloud
+                        based applications. It also offers a catalog of services from IBM and other companies which include
+                        the IBM Blockchain.</p>
                 </div>
                 <div class="bgrid">
                     <h3>How are votes anonymous, and verifiable?</h3>
-                    <p>Blockvote uses a blind signature scheme, allowing votes to be verified, but hiding the identity of the voter. </p>
+                    <p>Blockvote uses a blind signature scheme, allowing votes to be verified, but hiding the identity of the
+                        voter. </p>
                 </div>
             </div>
             <!-- /q-and-a -->
@@ -467,7 +496,7 @@
     <script src="js/jquery-migrate-1.2.1.min.js"></script>
     <script src="js/plugins.js"></script>
     <script src="js/main.js"></script>
-	<script src="js/results.js"></script>
+    <script src="js/results.js"></script>
 </body>
 
 </html>
